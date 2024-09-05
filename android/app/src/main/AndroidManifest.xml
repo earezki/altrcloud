@@ -11,7 +11,10 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:label="multicloud"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true"
+        >
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -47,6 +50,7 @@
         <activity
             android:name="net.openid.appauth.RedirectUriReceiverActivity"
             android:exported="true"
+            android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar"
             tools:node="replace">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

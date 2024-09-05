@@ -194,7 +194,7 @@ class Github extends StorageProvider {
   }
 
   _Repository _getAvailableRepository() {
-    var random = math.Random();
+    final random = math.Random();
     final repoIdx = random.nextInt(_repositories.length);
     return _repositories[repoIdx];
   }
@@ -209,14 +209,16 @@ class Github extends StorageProvider {
   static const int _encodedNameIdIdx = 0;
   static const int _encodedNameLastModifiedIdx = 1;
   static const int _encodedNameFilenameIdx = 2;
-  static const int _encodedChunkSeqIdx = 3;
-  static const int _encodedChunkSeqIdIdx = 4;
+  static const int _encodedTotalChunksIdx = 3;
+  static const int _encodedChunkSeqIdx = 4;
+  static const int _encodedChunkSeqIdIdx = 5;
 
   String _encodeName({
     required String id,
     required String filename,
     required DateTime lastModified,
-    int chunkSeq = 0,
+    required int totalChunks,
+    required int chunkSeq,
     String? chunkSeqId,
   }) {
     if (id == _readMe) {
@@ -224,8 +226,14 @@ class Github extends StorageProvider {
     }
     final lastModifierEpochInMillis = lastModified.millisecondsSinceEpoch;
 
-    return [id, lastModifierEpochInMillis, filename, chunkSeq, chunkSeqId]
-        .join(_encodingNameDelimiter);
+    return [
+      id,
+      lastModifierEpochInMillis,
+      filename,
+      totalChunks,
+      chunkSeq,
+      chunkSeqId
+    ].join(_encodingNameDelimiter);
   }
 
   Map<String, Object?> _decodeName(String name) {
@@ -234,7 +242,8 @@ class Github extends StorageProvider {
         'contentId': name,
         'lastModified': DateTime.now(),
         'filename': name,
-        'chunkSeq': 0
+        'chunkSeq': 0,
+        'totalChunks': 1,
       };
     }
 
@@ -244,6 +253,7 @@ class Github extends StorageProvider {
       int.parse(nameParts[_encodedNameLastModifiedIdx]),
     );
 
+    final totalChunks = int.parse(nameParts[_encodedTotalChunksIdx]);
     final chunkSeq = int.parse(nameParts[_encodedChunkSeqIdx]);
     final chunkSeqId = nameParts[_encodedChunkSeqIdIdx] == 'null'
         ? null
@@ -253,6 +263,7 @@ class Github extends StorageProvider {
       'contentId': id,
       'lastModified': lastModified,
       'filename': nameParts[_encodedNameFilenameIdx],
+      'totalChunks': totalChunks,
       'chunkSeq': chunkSeq,
       'chunkSeqId': chunkSeqId,
     };
@@ -261,15 +272,16 @@ class Github extends StorageProvider {
   @override
   Future<(BackupStatus, Content?)> backup({
     String? contentId,
-    int chunkSeq = 0,
+    required int totalChunks,
+    required int chunkSeq ,
     String? chunkSeqId,
     required String filename,
     required Uint8List bytes,
     required DateTime lastModified,
   }) async {
-    var repo = _getAvailableRepository();
-    var encrypted = await _encrypt.encrypt(bytes);
-    String contentInBase64 = base64Encode(encrypted);
+    final repo = _getAvailableRepository();
+    final encrypted = await _encrypt.encrypt(bytes);
+    final contentInBase64 = base64Encode(encrypted);
 
     contentId ??= const Uuid().v4();
 
@@ -277,6 +289,7 @@ class Github extends StorageProvider {
       id: contentId,
       filename: filename,
       lastModified: lastModified,
+      totalChunks: totalChunks,
       chunkSeq: chunkSeq,
       chunkSeqId: chunkSeqId,
     );
@@ -284,7 +297,8 @@ class Github extends StorageProvider {
         '$_baseApi/repos/$_orgName/${repo._name}/contents/$contentName');
 
     if (kDebugMode) {
-      print('Github start backup of file [$filename]/[$chunkSeq] to repo [${repo._name}]');
+      print(
+          'Github start backup of file [$filename]/[$chunkSeq] to repo [${repo._name}]');
     }
 
     final response = await _retryOpts.retry(
@@ -307,7 +321,7 @@ class Github extends StorageProvider {
         log('Github success to backup file [$filename] to repo [${repo._name}]');
       }
 
-      var contentJson =
+      final contentJson =
           jsonDecode(response.body)['content'] as Map<String, Object?>;
 
       return (BackupStatus.OK, _jsonToContent(contentJson));
@@ -330,7 +344,8 @@ class Github extends StorageProvider {
     final response = await http.get(url, headers: _getHeaders());
 
     if (kDebugMode) {
-      print('Github.loadData => ${content.name}|${content.chunkSeq} result: ${response.statusCode}');
+      print(
+          'Github.loadData => ${content.name}|${content.chunkSeq} result: ${response.statusCode}');
     }
 
     if (!_successCodes.contains(response.statusCode)) {
@@ -372,7 +387,7 @@ class Github extends StorageProvider {
   @override
   Future<List<Content>> getContent() async {
     List<Content> allContents = [];
-    for (var repo in _repositories) {
+    for (final repo in _repositories) {
       allContents.addAll(
         await _getContent(repo),
       );
@@ -382,13 +397,8 @@ class Github extends StorageProvider {
   }
 
   Future<List<Content>> _getContent(_Repository repo) async {
-    var url = Uri.parse('$_baseApi/repos/$_orgName/${repo._name}/contents');
-    var response = await http.get(url, headers: _getHeaders());
-
-    if (kDebugMode) {
-      log('''Loading Github contents from ${repo._name}
-           with status code : ${response.statusCode}''');
-    }
+    final url = Uri.parse('$_baseApi/repos/$_orgName/${repo._name}/contents');
+    final response = await http.get(url, headers: _getHeaders());
 
     if (!_successCodes.contains(response.statusCode)) {
       if (kDebugMode) {
@@ -399,24 +409,30 @@ class Github extends StorageProvider {
       return [];
     }
 
-    return (jsonDecode(response.body) as List<dynamic>)
+    final result = (jsonDecode(response.body) as List<dynamic>)
         .map((json) => _jsonToContent(json))
         .toList();
+
+    if (kDebugMode) {
+      print('Github contents from ${repo._name}|size : ${result.length}');
+    }
+
+    return result;
   }
 
   Content _jsonToContent(Map<String, Object?> json) {
     final name = json['name'] as String;
     final nameDecoded = _decodeName(name);
-    final contentId = nameDecoded['contentId'] as String;
-    final lastModified = nameDecoded['lastModified'] as DateTime;
     return Content(
-      id: contentId,
+      id: nameDecoded['contentId'] as String,
       storageProviderId: id,
       name: nameDecoded['filename'] as String,
       sha: json['sha'] as String,
       downloadUrl: json['git_url'] as String,
       size: json['size'] as int,
-      createdAtMillisSinceEpoch: lastModified.millisecondsSinceEpoch,
+      createdAtMillisSinceEpoch:
+          (nameDecoded['lastModified'] as DateTime).millisecondsSinceEpoch,
+      totalChunks: nameDecoded['totalChunks'] as int,
       chunkSeq: nameDecoded['chunkSeq'] as int,
       chunkSeqId: nameDecoded['chunkSeqId'] as String?,
     );
@@ -436,6 +452,7 @@ class Github extends StorageProvider {
       id: content.id,
       filename: content.name,
       lastModified: content.createdAt,
+      totalChunks: content.totalChunks,
       chunkSeq: content.chunkSeq,
       chunkSeqId: content.chunkSeqId,
     );
@@ -457,7 +474,7 @@ class Github extends StorageProvider {
 
     if (!_successCodes.contains(response.statusCode)) {
       throw Exception(
-          'Failed to delete ${content.name} => ${response.statusCode} : ${response.body}');
+          'Failed to delete $repo|$contentName => ${response.statusCode} : ${response.body}');
     }
 
     if (kDebugMode) {

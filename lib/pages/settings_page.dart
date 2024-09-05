@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:multicloud/pages/github_signin.dart';
 import 'package:multicloud/pages/widgets/config_widget.dart';
@@ -13,11 +14,14 @@ class SettingsPage extends StatelessWidget {
       UploadOnlyOnWifiConfig(),
       AutoUploadConfig(),
       ChunkSizeInMBConfig(),
+      TotalLocalFiles(),
+      TotalPrimaryFiles(),
+      TotalChunkFiles(),
+      TotalLocalFilesSize(),
       UsedCloudSpace(),
       UsedCacheSpace(),
       UsedThumbnailSpace(),
-      TotalPrimaryFiles(),
-      TotalChunkFiles()
+      UsedDatabaseSpace(),
     ];
 
     return SliverList(

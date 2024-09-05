@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
@@ -24,12 +26,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const _titles = ['Gallery', 'Docuemnts', 'Settings'];
+  static const _titles = ['Gallery', 'Documents', 'Settings'];
   static const _galleryIndex = 0;
   static const _documentsIndex = 1;
   static const _settingsIndex = 2;
 
-  int _selectedTabIndex = 0;
+  int _selectedTabIndex = _galleryIndex;
 
   final _scrollController = ScrollController();
 
@@ -59,11 +61,18 @@ class _HomePageState extends State<HomePage> {
     if (context.mounted) {
       await context.read<StorageProviderModel>().initState();
       await context.read<Store>().initState();
+
+      _onTabSelected(context.read<StorageProviderModel>().hasNoProviders
+          ? _settingsIndex
+          : _galleryIndex);
     }
   }
 
   void _onTabSelected(int index) {
     if (_selectedTabIndex != index) {
+      if (index == _settingsIndex) {
+        context.read<GalleryPageModel>().visibleScrollbar = false;
+      }
       setState(() {
         _selectedTabIndex = index;
       });
@@ -100,8 +109,8 @@ class _HomePageState extends State<HomePage> {
     });
 
     return Scaffold(
-      body: Consumer<GalleryPageModel>(
-        builder: (context, galleryPage, child) {
+      body: Consumer2<GalleryPageModel, Store>(
+        builder: (context, galleryPage, store, child) {
           return Scrollbar(
             controller: _scrollController,
             interactive: true,
@@ -112,7 +121,7 @@ class _HomePageState extends State<HomePage> {
               controller: _scrollController,
               slivers: <Widget>[
                 SliverAppBar(
-                  pinned: false,
+                  pinned: store.loadingFile != null,
                   snap: true,
                   floating: true,
                   actions: [
@@ -135,7 +144,10 @@ class _HomePageState extends State<HomePage> {
           );
         },
       ),
-      bottomNavigationBar: _buildNavigationBar(context),
+      bottomNavigationBar: Consumer<StorageProviderModel>(
+          builder: (context, storageProvider, child) {
+        return _buildNavigationBar(context, storageProvider);
+      }),
       floatingActionButton: Consumer2<ContentModel, GalleryPageModel>(
           builder: (context, contentModel, galleryPageModel, child) {
         return _buildFloatingActionButton(contentModel, galleryPageModel);
@@ -143,7 +155,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  NavigationBar _buildNavigationBar(BuildContext context) {
+  Widget _buildNavigationBar(
+      BuildContext context, StorageProviderModel storageProvider) {
+    if (storageProvider.hasNoProviders) {
+      return const SizedBox.shrink();
+    }
+
     return NavigationBar(
       onDestinationSelected: _onTabSelected,
       indicatorColor: Theme.of(context).colorScheme.inversePrimary,
@@ -172,13 +189,11 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildFloatingActionButton(
       ContentModel contentModel, GalleryPageModel galleryPage) {
-
     if (_selectedTabIndex == _settingsIndex) {
       return const SizedBox.shrink();
     }
 
     return FloatingActionButton(
-
       onPressed: () {
         if (contentModel.isLoading) {
           return;
@@ -196,7 +211,7 @@ class _HomePageState extends State<HomePage> {
           ? 'Delete'
           : (galleryPage.isSearchMode ? 'Reset' : 'Backup'),
       child: (contentModel.isLoading
-          ? const CircularProgressIndicator()
+          ? scaledCircularProgress(0.7)
           : galleryPage.isSelectionMode
               ? const Icon(Icons.delete_outline)
               : (galleryPage.isSearchMode
@@ -245,6 +260,32 @@ class _HomePageState extends State<HomePage> {
       ));
       galleryPagePopupMenus.add(const PopupMenuDivider());
     }
+
+    List<PopupMenuEntry<String>> debugActions = [];
+    if (kDebugMode) {
+      debugActions.add(PopupMenuItem<String>(
+        value: 'Clear cache',
+        child: const ListTile(
+          leading: Icon(Icons.delete_outline),
+          title: Text('Clear cache'),
+        ),
+        onTap: () {
+          context.read<ContentModel>().clearCache();
+        },
+      ));
+
+      debugActions.add(PopupMenuItem<String>(
+        value: 'Clear thumbnails',
+        child: const ListTile(
+          leading: Icon(Icons.delete_outline),
+          title: Text('Clear thumbnails'),
+        ),
+        onTap: () {
+          context.read<ContentModel>().clearThumbnails();
+        },
+      ));
+    }
+
     return [
       ...galleryPagePopupMenus,
       PopupMenuItem<String>(
@@ -265,16 +306,6 @@ class _HomePageState extends State<HomePage> {
         },
       ),
       PopupMenuItem<String>(
-        value: 'Clear cache',
-        child: const ListTile(
-          leading: Icon(Icons.delete_outline),
-          title: Text('Clear cache'),
-        ),
-        onTap: () {
-          context.read<ContentModel>().clearCache();
-        },
-      ),
-      PopupMenuItem<String>(
         value: 'Settings',
         child: const ListTile(
           leading: Icon(Icons.settings_outlined),
@@ -284,6 +315,7 @@ class _HomePageState extends State<HomePage> {
           _onTabSelected(_settingsIndex);
         },
       ),
+      ...debugActions
     ];
   }
 
@@ -310,29 +342,31 @@ class _HomePageState extends State<HomePage> {
     return Consumer<Store>(
       builder: (context, store, child) {
         final loadingFile = store.loadingFile;
-        if (loadingFile == null) {
+        if (loadingFile == null || _selectedTabIndex == _settingsIndex) {
           return SliverToBoxAdapter(
             child: Container(),
           );
         }
 
+        final leadingFilename = loadingFile.filename
+            .substring(0, min(10, loadingFile.filename.length));
+
         return SliverPersistentHeader(
           pinned: true,
           floating: false,
           delegate: _SliverAppBarDelegate(
-            minHeight: 120.0,
-            maxHeight: 120.0,
+            minHeight: 90.0,
+            maxHeight: 90.0,
             child: Card(
               child: ListTile(
+                leading: scaledCircularProgress(0.7),
                 title: Text(
-                    '${loadingFile.filename}|${getUserSizeString(loadingFile.size)}|${loadingFile.uploadedChunks}/${loadingFile.totalChunks}'),
-                leading: loadingFile.totalChunks == 1 ||
-                        loadingFile.uploadedChunks == 0
-                    ? const CircularProgressIndicator()
-                    : CircularProgressIndicator(
-                        value: loadingFile.uploadedChunks /
-                            loadingFile.totalChunks,
-                      ),
+                    '$leadingFilename..${loadingFile.extension}|${getUsedSizeString(loadingFile.size)}'),
+                subtitle:
+                    LinearProgressIndicator(
+                      value: loadingFile.uploadedChunks / loadingFile.totalChunks,
+                    ),
+                trailing: Text('${loadingFile.uploadedChunks}/${loadingFile.totalChunks}'),
               ),
             ),
           ),

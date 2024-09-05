@@ -7,11 +7,16 @@ import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/cache.dart' as cache;
 import 'package:multicloud/toolkit/file_type.dart';
+import 'package:multicloud/toolkit/file_utils.dart';
+import 'package:multicloud/toolkit/list_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
 import 'package:multicloud/toolkit/utils.dart';
 
 class ContentModel extends ChangeNotifier {
-  final ContentRepository _repository = ContentRepository();
+  final ContentRepository _contentRepository = ContentRepository();
+  final UploadStatusRepository _uploadStatusRepository =
+      UploadStatusRepository();
+  final ConfigRepository _configRepository = ConfigRepository();
 
   final List<Content> _contents = [];
   Map<DateTime, List<int>> _contentsByDate = {};
@@ -72,7 +77,8 @@ class ContentModel extends ChangeNotifier {
   }
 
   Future<List<Content>> _contentsOfRepo() async {
-    return await _repository.find(criteria: SearchCriteria(chunkSeq: -1));
+    return await _contentRepository.find(
+        criteria: SearchCriteria(chunkSeq: -1));
   }
 
   Future<void> initState() async {
@@ -87,11 +93,20 @@ class ContentModel extends ChangeNotifier {
     startLoading();
 
     final contents = await _contentsOfRepo();
+    await contents.removeWhereAsync((c) async {
+      final notFullyUploaded =
+          c.hasOtherChunks && (await hasPendingChunks(c.name));
+      final notSupportedExt =
+          ![FileType.PICTURE, FileType.VIDEO].contains(c.fileType);
+      return notFullyUploaded || notSupportedExt;
+    });
+
     replace(contents);
 
     var remoteContent = await storageProviderModel.fetchContent();
 
-    // TODO remove duplicates from remoteContent
+    // remove duplicated content by filename and chunkSeq.
+    // remoteContent.unique((rc) => '${rc.name}-${rc.chunkSeq}');
 
     remoteContent.removeWhere((rc) {
       final alreadyExistsLocally =
@@ -101,7 +116,7 @@ class ContentModel extends ChangeNotifier {
 
     if (remoteContent.isNotEmpty) {
       // save all first to have all the chunks available for videos.
-      await _repository.saveAll(remoteContent);
+      await _contentRepository.saveAll(remoteContent);
 
       // create thumbnails.
       for (var rc in remoteContent) {
@@ -109,22 +124,36 @@ class ContentModel extends ChangeNotifier {
           continue;
         }
 
-        rc = await _loadData(rc);
+        if (rc.hasOtherChunks && await hasPendingChunks(rc.name)) {
+          // if not all chunks have been updated then we skip it and wait for the next synchronization.
+          continue;
+        }
 
-        // TODO: if thumbnail creation failed, usually the vid isn't well uploaded !
+        final config = await _configRepository.find();
+        final localFile =
+            await getFileByName(rc.name, await config.getPictureDirectories());
+        final localFileExists = await localFile?.exists() ?? false;
+        if (localFileExists) {
+          rc.localPath = localFile!.path;
+        } else {
+          rc = await _loadData(rc);
+        }
+
         try {
           await createThumbnail(
             content: rc,
             originalPath: rc.path,
           );
 
-          await _repository.update(rc);
+          await _contentRepository.update(rc);
           add(rc);
         } catch (e) {
           if (kDebugMode) {
-            print('ContentModel.initState => failed to create thumbnail for ${rc.name}, assuming bad upload and deleting from storage !');
+            print(
+                'ContentModel.initState => failed to create thumbnail for ${rc.name}, assuming bad upload and deleting from storage !');
           }
-          _deleteChunks(rc);
+          // TODO: if thumbnail creation failed, usually the vid isn't well uploaded !
+          // _deleteChunks(rc);
         }
       }
     }
@@ -132,8 +161,42 @@ class ContentModel extends ChangeNotifier {
     finishLoading();
   }
 
+  Future<bool> hasPendingChunks(String filename) async {
+    final uploadedChunks = await _contentRepository.find(
+      criteria: SearchCriteria(
+        name: filename,
+        chunkSeq: null,
+      ),
+    );
+
+    if (uploadedChunks.isNotEmpty) {
+      return uploadedChunks.length != uploadedChunks.first.totalChunks;
+    }
+
+    return false;
+
+    /*final uploadedStatus = await _uploadStatusRepository.find(
+      filename: filename,
+    );
+
+    if (uploadedStatus.isNotEmpty &&
+        // all chunks have not been uploaded
+        uploadedStatus.first.chunksCount != uploadedStatus.length) {
+      final uploadedChunks = await _contentRepository.find(
+        criteria: SearchCriteria(
+          name: filename,
+          chunkSeq: null,
+        ),
+      );
+
+      return uploadedChunks.length != uploadedStatus.first.chunksCount;
+    }
+
+    return false;*/
+  }
+
   Future<void> search(String query) async {
-    var contents = await _repository.find(
+    var contents = await _contentRepository.find(
       criteria: SearchCriteria(
         name: query,
       ),
@@ -168,15 +231,15 @@ class ContentModel extends ChangeNotifier {
 
   void add(Content content) {
     if (content.isPrimaryChunk) {
+      _contents.removeWhere((c) => c.id == content.id);
       _contents.add(content);
 
-      /*  _contents.sort(
+      _contents.sort(
         (a, b) =>
             b.createdAtMillisSinceEpoch.compareTo(a.createdAtMillisSinceEpoch),
-      );*/
+      );
+      notifyListeners();
     }
-
-    notifyListeners();
   }
 
   void _delete(Content content) {
@@ -201,21 +264,21 @@ class ContentModel extends ChangeNotifier {
         contents.where((content) => content != null).cast<Content>().toList();
 
     await Future.wait(nonNullableContents
-        .map((content) async => await _repository.save(content))
+        .map((content) async => await _contentRepository.save(content))
         .toList());
 
     addAll(nonNullableContents);
   }
 
   Future<void> save(Content content) async {
-    await _repository.save(content);
+    await _contentRepository.save(content);
 
     add(content);
   }
 
   Future<void> saveChunked(ChunkedContent chunkedContent) async {
     for (final content in chunkedContent.chunks) {
-      await _repository.save(content);
+      await _contentRepository.save(content);
     }
 
     add(chunkedContent.primaryChunk);
@@ -247,7 +310,7 @@ class ContentModel extends ChangeNotifier {
   }
 
   Future<List<Content>> _getChunks(Content content) async {
-    return await _repository.find(
+    return await _contentRepository.find(
       criteria: SearchCriteria(chunkSeq: -1, chunkSeqId: content.chunkSeqId),
     );
   }
@@ -287,7 +350,7 @@ class ContentModel extends ChangeNotifier {
     StorageProvider provider = _getProviderOfContent(content);
     try {
       await provider.delete(content);
-      await _repository.deleteByName(content);
+      await _contentRepository.deleteByName(content);
 
       if (kDebugMode) {
         print(
@@ -364,7 +427,7 @@ class ContentModel extends ChangeNotifier {
         final result = await provider.loadData(content);
         await cacheFile.writeAsBytes(result.$2);
       } else if (content.fileType == FileType.VIDEO && content.isPrimaryChunk) {
-        final allChunks = await _repository.find(
+        final allChunks = await _contentRepository.find(
           criteria: SearchCriteria(
               chunkSeq: -1, // find all
               chunkSeqId: content.chunkSeqId),
@@ -412,11 +475,15 @@ class ContentModel extends ChangeNotifier {
       }
     }
 
-    return await _repository.update(content);
+    return await _contentRepository.update(content);
   }
 
   Future<void> clearCache() async {
     await cache.clearCache();
+  }
+
+  Future<void> clearThumbnails() async {
+    await clearThumbnails();
   }
 }
 
@@ -426,6 +493,8 @@ class StorageProviderModel extends ChangeNotifier {
 
   UnmodifiableListView<StorageProvider> get providers =>
       UnmodifiableListView(_providers);
+
+  bool get hasNoProviders => _providers.isEmpty;
 
   Future<void> initState() async {
     var providers = await _repository.findAll();

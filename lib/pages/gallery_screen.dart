@@ -9,8 +9,11 @@ import 'package:multicloud/toolkit/utils.dart';
 import 'package:provider/provider.dart';
 
 class GalleryPage extends StatefulWidget {
-  const GalleryPage(
-      {super.key, required this.content, required this.galleryPage});
+  const GalleryPage({
+    super.key,
+    required this.content,
+    required this.galleryPage,
+  });
 
   final ContentModel content;
   final GalleryPageModel galleryPage;
@@ -24,7 +27,7 @@ class _GalleryPageState extends State<GalleryPage> {
 
   @override
   Widget build(BuildContext context) {
-    var thumbnails = widget.content.thumbnails;
+    final thumbnails = widget.content.thumbnails;
     if (thumbnails.isEmpty) {
       return const SliverFillRemaining(
         hasScrollBody: false,

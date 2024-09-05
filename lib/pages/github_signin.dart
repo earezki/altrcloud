@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:multicloud/pages/state/models.dart';
+import 'package:multicloud/pages/widgets/bouncing_dots.dart';
+import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/github/github.dart';
 import 'package:provider/provider.dart';
 
@@ -21,9 +23,12 @@ class GithubSignIn extends StatelessWidget {
   const GithubSignIn({super.key});
 
   Future<void> _signIn(BuildContext context) async {
-    StorageProviderModel storageProviderModel =
-        context.read<StorageProviderModel>();
+    StorageProviderModel storageProvider = context.read<StorageProviderModel>();
     ContentModel contents = context.read<ContentModel>();
+
+    if (contents.isLoading) {
+      return;
+    }
 
     try {
       final AuthorizationTokenResponse? result =
@@ -42,18 +47,19 @@ class GithubSignIn extends StatelessWidget {
 
       if (result != null) {
         if (kDebugMode) {
-          print('GithubSignIn._signIn => Access token: ${result.accessToken}, expired at: ${result.accessTokenExpirationDateTime}');
+          print(
+              'GithubSignIn._signIn => Access token: ${result.accessToken}, expired at: ${result.accessTokenExpirationDateTime}');
         }
 
         contents.startLoading();
         try {
-          var newGithubStorage = await Github.connect(
+          final newGithubStorage = await Github.connect(
             accessToken: result.accessToken ?? 'UNAVAILABLE_TOKEN',
             accessTokenExpiryDate:
                 result.accessTokenExpirationDateTime ?? DateTime.now(),
           );
 
-          await storageProviderModel.saveProvider(
+          await storageProvider.saveProvider(
             newGithubStorage,
           );
         } catch (e) {
@@ -82,16 +88,20 @@ class GithubSignIn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(8)),
+    return Consumer<ContentModel>(builder: (context, contents, child) {
+      return ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
         ),
-      ),
-      onPressed: () => _signIn(context),
-      icon: const FaIcon(FontAwesomeIcons.github),
-      label: const Text('Github'),
-    );
+        onPressed: () => _signIn(context),
+        icon: contents.isLoading
+            ? const BouncingDots()
+            : const FaIcon(FontAwesomeIcons.github),
+        label: const Text('Github'),
+      );
+    });
   }
 }

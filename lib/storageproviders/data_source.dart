@@ -3,11 +3,16 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/storageproviders/github/Github.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
+import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:unique_identifier/unique_identifier.dart';
 
-enum _Tables { STORAGE_PROVIDER, CONTENT, CONFIG }
+enum _Tables { STORAGE_PROVIDER, CONTENT, CONFIG, UPLOAD_STATUS }
+
+Future<int> getDatabaseSize() async {
+  return getDirectorySize(await getDatabasesPath());
+}
 
 class DataSource {
   static final DataSource instance = DataSource._();
@@ -22,7 +27,7 @@ class DataSource {
       _database = await _create();
     }
 
-    return _database as Database;
+    return _database!;
   }
 
   static Future<Database> _create() async {
@@ -32,11 +37,11 @@ class DataSource {
       print('DataSource: identifier $identifier');
     }
 
-    var databasePath =
-        join(await getDatabasesPath(), 'altrcloud_database_18.db');
+    final databasePath =
+        join(await getDatabasesPath(), 'altrcloud_database_32.db');
     if (kDebugMode) {
       print('''
-      Creating database connection in path: ${databasePath}
+      Creating database connection in path: $databasePath
       ''');
     }
 
@@ -46,7 +51,7 @@ class DataSource {
                 CREATE TABLE ${_Tables.STORAGE_PROVIDER.name}(
                   id TEXT PRIMARY KEY,
                   metadata TEXT
-                )''');
+                );''');
       await db.execute('''
                 CREATE TABLE ${_Tables.CONTENT.name}(
                   id TEXT PRIMARY KEY,
@@ -58,6 +63,7 @@ class DataSource {
                   createdAtMillisSinceEpoch INTEGER,
                   localPath TEXT,
                   thumbnailPath TEXT,
+                  totalChunks INTEGER,
                   chunkSeq INTEGER,
                   chunkSeqId TEXT
                 );
@@ -67,7 +73,15 @@ class DataSource {
                 CREATE TABLE ${_Tables.CONFIG.name}(
                   id TEXT PRIMARY KEY,
                   metadata TEXT
-                )''');
+                );''');
+
+      await db.execute('''
+                CREATE TABLE ${_Tables.UPLOAD_STATUS.name}(
+                  filename TEXT,
+                  chunkSeq INTEGER,
+                  chunkSeqId TEXT,
+                  chunksCount INTEGER
+                );''');
 
       await db.execute(
           'CREATE INDEX content_name_index ON ${_Tables.CONTENT.name} (name)');
@@ -79,6 +93,10 @@ class DataSource {
           'CREATE INDEX content_create_at_index ON ${_Tables.CONTENT.name} (createdAtMillisSinceEpoch)');
       await db.execute(
           'CREATE INDEX content_storage_provider_id_index ON ${_Tables.CONTENT.name} (storageProviderId)');
+      await db.execute(
+          'CREATE INDEX upload_status_filename_index ON ${_Tables.UPLOAD_STATUS.name} (filename)');
+      await db.execute(
+          'CREATE INDEX upload_status_chunk_seq_index ON ${_Tables.UPLOAD_STATUS.name} (chunkSeq)');
     });
 
     return database;
@@ -121,7 +139,7 @@ class StorageProviderRepository {
 
     if (sourceType == SourceType.GITHUB) {
       final github = Github.fromMap(metadata);
-    //  await github.initState();
+      //  await github.initState();
       return github;
     }
     throw Exception('Unsupported $sourceType , $metadata');
@@ -129,7 +147,6 @@ class StorageProviderRepository {
 }
 
 class ContentRepository {
-
   Future<void> saveAll(List<Content> contents) async {
     for (Content c in contents) {
       await save(c);
@@ -149,10 +166,22 @@ class ContentRepository {
   Future<Content> findOne(SearchCriteria criteria) async {
     final result = await find(criteria: criteria);
     if (result.isEmpty) {
-      throw 'ContentRepository.update => no content found';
+      throw 'ContentRepository.findOne => no content found';
     }
     if (result.length != 1) {
-      throw 'ContentRepository.update => more than one content found';
+      throw 'ContentRepository.findOne => more than one content found';
+    }
+
+    return result[0];
+  }
+
+  Future<Content?> maybeOne(SearchCriteria criteria) async {
+    final result = await find(criteria: criteria);
+    if (result.isEmpty) {
+      return null;
+    }
+    if (result.length != 1) {
+      throw 'ContentRepository.maybeOne => more than one content found';
     }
 
     return result[0];
@@ -188,7 +217,8 @@ class ContentRepository {
     Database database = await DataSource.instance.database;
 
     const alias = 'totalPrimary';
-    final sqlQuery = 'SELECT COUNT(*) as $alias FROM ${_Tables.CONTENT.name} WHERE chunkSeq = 0';
+    final sqlQuery =
+        'SELECT COUNT(*) as $alias FROM ${_Tables.CONTENT.name} WHERE chunkSeq = 0';
 
     final List<Map<String, Object?>> sum = await database.rawQuery(
       sqlQuery,
@@ -243,6 +273,7 @@ class ContentRepository {
 class SearchCriteria {
   String? id;
   String? name;
+  bool exactName;
   String? sortBy;
   String? sortDirection;
   int? chunkSeq;
@@ -254,19 +285,20 @@ class SearchCriteria {
       this.sortBy,
       this.sortDirection,
       this.chunkSeq = 0,
+      this.exactName = true,
       this.chunkSeqId});
 
   String sql() {
     List<String> wheres = [];
     if (chunkSeq != null && chunkSeq! >= 0) {
-      wheres.add('chunkSeq = 0');
+      wheres.add('chunkSeq = $chunkSeq');
     }
 
     if (id != null && id?.isNotEmpty == true) {
       wheres.add('id = "$id"');
     }
     if (name != null && name?.isNotEmpty == true) {
-      wheres.add('name like "%$name%"');
+      wheres.add('name ${exactName ? '= "$name"' : 'like "%$name%"'}');
     }
     if (chunkSeqId != null && chunkSeqId?.isNotEmpty == true) {
       wheres.add('chunkSeqId = "$chunkSeqId"');
@@ -328,5 +360,43 @@ class ConfigRepository {
     final {'metadata': json as String} = configMap[0];
 
     return Config.fromMap(jsonDecode(json));
+  }
+}
+
+class UploadStatusRepository {
+  Future<void> save(UploadStatus uploadStatus) async {
+    Database database = await DataSource.instance.database;
+
+    await database.insert(
+      _Tables.UPLOAD_STATUS.name,
+      uploadStatus.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<UploadStatus>> find({
+    required String filename,
+    int? chunkSeq,
+  }) async {
+    Database database = await DataSource.instance.database;
+
+    List<String> whereOps = [];
+    whereOps.add('filename = "$filename"');
+    if (chunkSeq != null) {
+      whereOps.add('chunkSeq = $chunkSeq');
+    }
+
+    final sql =
+        'SELECT * FROM ${_Tables.UPLOAD_STATUS.name} WHERE ${whereOps.join(' AND ')}';
+
+    final List<Map<String, Object?>> uploadStatuses =
+        await database.rawQuery(sql);
+
+    if (kDebugMode) {
+      print(
+          'UploadStatusRepository.find => $sql | total result : [${uploadStatuses.length}]');
+    }
+
+    return uploadStatuses.map((map) => UploadStatus.fromMap(map)).toList();
   }
 }

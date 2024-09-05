@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/pages/state/config.dart';
 import 'package:multicloud/pages/state/models.dart';
+import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_type.dart';
+import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
@@ -17,6 +19,10 @@ class Store extends ChangeNotifier {
 
   bool _isUploadInProgress = false;
   LoadingFile? _loadingFile;
+
+  final UploadStatusRepository _uploadStatusRepository =
+      UploadStatusRepository();
+  final ContentRepository _contentRepository = ContentRepository();
 
   LoadingFile? get loadingFile {
     if (!_isUploadInProgress) {
@@ -161,14 +167,15 @@ class Store extends ChangeNotifier {
   }
 
   Future<void> _upload(String directory, StorageProvider provider) async {
-    await for (var fileToUpload
+    await for (final fileToUpload
         in Directory(directory).list(recursive: true, followLinks: false)) {
       if (fileToUpload is! File) {
         continue;
       }
 
       final originalFilename = basename(fileToUpload.path);
-      if (contentModel.hasFilename(originalFilename)) {
+      if (contentModel.hasFilename(originalFilename) &&
+          !(await contentModel.hasPendingChunks(originalFilename))) {
         continue;
       }
 
@@ -215,6 +222,7 @@ class Store extends ChangeNotifier {
         await createThumbnail(
           content: videoContent.primaryChunk,
           originalPath: fileToUpload.path,
+          rebuild: true,
         );
 
         contentModel.saveChunked(videoContent);
@@ -242,7 +250,8 @@ class Store extends ChangeNotifier {
       final length = await randomAccessFile.length();
       int offset = 0;
 
-      final totalChunks = (length / chunkSizeInBytes).ceil();
+      final totalChunks = getTotalChunks(chunkSizeInBytes, length);
+
       _setLoadingFile(
         filename: filename,
         size: length,
@@ -256,7 +265,8 @@ class Store extends ChangeNotifier {
             'total chunks is $totalChunks');
       }
 
-      ChunkedContent chunks = ChunkedContent(id: const Uuid().v4());
+      ChunkedContent chunks =
+          ChunkedContent(id: await _getChunkSeqId(filename));
 
       while (offset < length) {
         final remainingBytes = length - offset;
@@ -273,14 +283,16 @@ class Store extends ChangeNotifier {
           lastModified: lastModified,
           chunkSeq: chunks.nextSeq,
           chunkSeqId: chunks.id,
+          totalChunks: totalChunks,
         );
 
         if (contentChunk == null) {
-          chunks.rollback(provider);
-
+          // maybe not rollback every thing ? keep the uploaded chunks and retry later the next chunks !
+          //   chunks.rollback(provider);
           throw 'Failed to upload ${video.path}';
         }
         chunks.addChunk(contentChunk);
+        _contentRepository.save(contentChunk);
 
         _setLoadingFileUploadedChunks(chunks.chunks.length);
 
@@ -299,21 +311,64 @@ class Store extends ChangeNotifier {
     }
   }
 
+  Future<String> _getChunkSeqId(String filename) async {
+    final existingChunks = await _contentRepository.find(
+      criteria: SearchCriteria(name: filename, chunkSeq: null),
+    );
+
+    if (existingChunks.isNotEmpty && existingChunks.first.chunkSeqId != null) {
+      if (kDebugMode) {
+        print(
+            'Store._getChunkSeqId => existing chunk found : ${existingChunks.first.chunkSeqId}');
+      }
+      return existingChunks.first.chunkSeqId!;
+    }
+
+    return const Uuid().v4();
+  }
+
   Future<Content?> _backupFile({
     required StorageProvider provider,
     required String filename,
     required Uint8List fileBytes,
     required DateTime lastModified,
+    int totalChunks = 1,
     int chunkSeq = 0,
     String? chunkSeqId,
   }) async {
-    var result = await provider.backup(
+    final uploadedChunk = await _contentRepository.maybeOne(
+      SearchCriteria(
+        name: filename,
+        chunkSeq: chunkSeq,
+      ),
+    );
+
+    final chunkAlreadyUploaded = uploadedChunk != null;
+    if (chunkAlreadyUploaded) {
+      if (kDebugMode) {
+        print('Store._backupFile => $filename | $chunkSeq already exists !');
+      }
+      return uploadedChunk;
+    }
+
+    final result = await provider.backup(
       filename: filename,
       bytes: fileBytes,
       lastModified: lastModified,
       chunkSeq: chunkSeq,
+      totalChunks: totalChunks,
       chunkSeqId: chunkSeqId,
     );
+
+    _uploadStatusRepository.save(
+      UploadStatus(
+        filename: filename,
+        chunksCount: totalChunks,
+        chunkSeq: chunkSeq,
+        chunkSeqId: chunkSeqId,
+      ),
+    );
+
     if (result.$1 == BackupStatus.OK && result.$2 != null) {
       return result.$2;
     }
@@ -327,6 +382,8 @@ class LoadingFile {
 
   int totalChunks;
   int uploadedChunks;
+
+  String get extension => getExt(filename);
 
   LoadingFile({
     required this.filename,

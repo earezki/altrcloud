@@ -21,7 +21,8 @@ abstract class StorageProvider {
 
   Future<(BackupStatus, Content?)> backup(
       {String? contentId,
-      int chunkSeq = 0,
+      required int totalChunks,
+      required int chunkSeq,
       String? chunkSeqId,
       required String filename,
       required Uint8List bytes,
@@ -46,6 +47,46 @@ enum SourceType {
 
 enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 
+class UploadStatus {
+  final String filename;
+  final int chunksCount;
+  final int chunkSeq;
+  final String? chunkSeqId;
+
+  UploadStatus(
+      {required this.filename,
+      required this.chunksCount,
+      required this.chunkSeq,
+      this.chunkSeqId});
+
+  UploadStatus success() => UploadStatus(
+        filename: filename,
+        chunksCount: chunksCount,
+        chunkSeq: chunkSeq,
+        chunkSeqId: chunkSeqId,
+      );
+
+  UploadStatus failed() => UploadStatus(
+        filename: filename,
+        chunksCount: chunksCount,
+        chunkSeq: chunkSeq,
+        chunkSeqId: chunkSeqId,
+      );
+
+  Map<String, Object?> toMap() => {
+        'filename': filename,
+        'chunkSeq': chunkSeq,
+        'chunkSeqId': chunkSeqId,
+        'chunksCount': chunksCount
+      };
+
+  UploadStatus.fromMap(Map<String, Object?> map)
+      : filename = map['filename'] as String,
+        chunkSeq = map['chunkSeq'] as int,
+        chunkSeqId = map['chunkSeqId'] as String?,
+        chunksCount = map['chunksCount'] as int;
+}
+
 class Content {
   final String id;
   final String storageProviderId;
@@ -57,6 +98,7 @@ class Content {
   final int createdAtMillisSinceEpoch;
 
   int chunkSeq;
+  int totalChunks;
   String? chunkSeqId;
 
   String? localPath;
@@ -77,6 +119,7 @@ class Content {
     required this.downloadUrl,
     required this.size,
     required this.createdAtMillisSinceEpoch,
+    this.totalChunks = 1,
     this.chunkSeq = 0,
     this.chunkSeqId,
     this.localPath,
@@ -103,6 +146,7 @@ class Content {
         'downloadUrl': downloadUrl,
         'storageProviderId': storageProviderId,
         'createdAtMillisSinceEpoch': createdAtMillisSinceEpoch,
+        'totalChunks': totalChunks,
         'chunkSeq': chunkSeq,
         'chunkSeqId': chunkSeqId,
         'localPath': localPath,
@@ -116,6 +160,7 @@ class Content {
         downloadUrl = map['downloadUrl'] as String,
         storageProviderId = map['storageProviderId'] as String,
         createdAtMillisSinceEpoch = map['createdAtMillisSinceEpoch'] as int,
+        totalChunks = map['totalChunks'] as int,
         chunkSeq = map['chunkSeq'] as int,
         chunkSeqId = map['chunkSeqId'] as String?,
         localPath = map['localPath'] as String?;
@@ -139,6 +184,7 @@ class ChunkedContent {
       throw 'Chunk have incorrect metadata !';
     }
 
+    //content.chunkSeqId = id;
     chunks.add(content);
   }
 

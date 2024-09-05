@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:multicloud/pages/state/config.dart';
 import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/toolkit/cache.dart';
+import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class UsedCloudSpace extends StatelessWidget {
   const UsedCloudSpace({super.key});
@@ -58,6 +62,26 @@ class UsedThumbnailSpace extends StatelessWidget {
           return ListTile(
             title: const Text('Used thumbnail space'),
             leading: const Icon(Icons.account_circle_outlined),
+            trailing: _getUsedSize(snapshot),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class UsedDatabaseSpace extends StatelessWidget {
+  const UsedDatabaseSpace({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: FutureBuilder<int>(
+        future: getDatabaseSize(),
+        builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
+          return ListTile(
+            title: const Text('Used database space'),
+            leading: const FaIcon(FontAwesomeIcons.floppyDisk),
             trailing: _getUsedSize(snapshot),
           );
         },
@@ -123,4 +147,112 @@ Widget _getUsedSize(AsyncSnapshot<int> snapshot) {
   }
   final int usedBytes = snapshot.data!;
   return getUsedSizeWidget(usedBytes);
+}
+
+class TotalLocalFiles extends StatelessWidget {
+  const TotalLocalFiles({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final ContentRepository repository = ContentRepository();
+
+    return Card(
+      child: FutureBuilder<List<dynamic>>(
+        future: Future.wait([
+          repository.totalPrimary(),
+          getTotalFiles(context.read<ConfigModel>().pictureDirectories),
+        ]),
+        builder: (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
+          return ListTile(
+            title: const Text('Uploaded/Total files'),
+            subtitle: _getProgressIndicator(snapshot),
+            trailing: _getUsed(snapshot),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _getUsed(AsyncSnapshot<List<dynamic>> snapshot) {
+    if (snapshot.hasError) {
+      return const Text('N/A');
+    }
+    if (!snapshot.hasData) {
+      return halfSizedCircularProgress();
+    }
+
+    final used = snapshot.data![0];
+    final total = snapshot.data![1];
+
+    return Text('${used.toInt()} / ${total.toInt()}');
+  }
+
+  Widget _getProgressIndicator(AsyncSnapshot<List<dynamic>> snapshot) {
+    if (snapshot.hasError) {
+      return const SizedBox.shrink();
+    }
+    if (!snapshot.hasData) {
+      return const SizedBox.shrink();
+    }
+
+    final used = snapshot.data![0];
+    final total = snapshot.data![1];
+    return LinearProgressIndicator(
+      value: used / total,
+    );
+  }
+}
+
+class TotalLocalFilesSize extends StatelessWidget {
+  const TotalLocalFilesSize({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final ContentRepository repository = ContentRepository();
+
+    return Card(
+      child: FutureBuilder<List<dynamic>>(
+        future: Future.wait([
+          repository.totalSize(),
+          getDirectoriesSize(context.read<ConfigModel>().pictureDirectories),
+        ]),
+        builder: (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
+          return ListTile(
+            title: const Text('Uploaded/Total size'),
+            subtitle: _getProgressIndicator(snapshot),
+            trailing: _getUsed(snapshot),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _getUsed(AsyncSnapshot<List<dynamic>> snapshot) {
+    if (snapshot.hasError) {
+      return const Text('N/A');
+    }
+    if (!snapshot.hasData) {
+      return halfSizedCircularProgress();
+    }
+
+    final used = snapshot.data![0];
+    final total = snapshot.data![1];
+
+    return Text('${getUsedSizeString(used)} / ${getUsedSizeString(total)}');
+  }
+
+  Widget _getProgressIndicator(AsyncSnapshot<List<dynamic>> snapshot) {
+    if (snapshot.hasError) {
+      return const SizedBox.shrink();
+    }
+    if (!snapshot.hasData) {
+      return const SizedBox.shrink();
+    }
+
+    final used = snapshot.data![0];
+    final total = snapshot.data![1];
+    return LinearProgressIndicator(
+      value: used / total,
+    );
+  }
 }
