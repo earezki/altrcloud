@@ -13,6 +13,7 @@ class GalleryPageModel extends ChangeNotifier {
 
   UnmodifiableListView<int> get selectedIndexList =>
       UnmodifiableListView(_selectedIndexList);
+  int get selectionCount => _selectedIndexList.length;
 
   bool get isSelectionMode => _selectionMode;
 

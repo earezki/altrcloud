@@ -24,3 +24,31 @@ Widget scaledCircularProgress(double scale) {
     child: const CircularProgressIndicator(),
   );
 }
+
+void showConfirmationDialog(BuildContext context, VoidCallback onPressed,
+    {String message = 'Are you sure you want to proceed?'}) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text('Confirm'),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              onPressed();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      );
+    },
+  );
+}

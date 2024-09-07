@@ -68,6 +68,8 @@ dependencies:
   wakelock_plus: ^1.2.8
   share_plus: ^10.0.2
   intl: ^0.19.0
+  native_exif: ^0.6.0
+  geocoding: ^3.0.0
 
 dev_dependencies:
   flutter_test:

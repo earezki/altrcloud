@@ -93,6 +93,19 @@ class ContentModel extends ChangeNotifier {
       return;
     }
 
+    try {
+      await _reload();
+      //await sync();
+    } finally {
+      finishLoading();
+    }
+  }
+
+  Future<void> _reload() async {
+    if (isLoading) {
+      return;
+    }
+
     startLoading();
 
     final contents = await _contentsOfRepo();
@@ -100,18 +113,54 @@ class ContentModel extends ChangeNotifier {
     replace(contents);
 
     await contents.removeWhereAsync((c) async {
-      final notFullyUploaded =
-          c.hasOtherChunks && (await hasPendingChunks(c.name));
       final notSupportedExt =
-      ![FileType.PICTURE, FileType.VIDEO].contains(c.fileType);
-      return notFullyUploaded || notSupportedExt;
+          ![FileType.PICTURE, FileType.VIDEO].contains(c.fileType);
+      return (!c.isPrimaryChunk) ||
+          (notSupportedExt) ||
+          (c.hasOtherChunks && (hasPendingChunks(contents, c.name)));
     });
 
     replace(contents);
 
-    await sync();
-
     finishLoading();
+  }
+
+  Future<void> resolveConflicts() async {
+    if (isLoading) {
+      return;
+    }
+
+    startLoading();
+    try {
+      final allContents = await _contentRepository.find(
+        criteria: SearchCriteria(
+          chunkSeq: null,
+        ),
+      );
+      Set<String> unique = {};
+      List<Content> duplicates = [];
+      for (final content in allContents) {
+        final id = '${content.name}|${content.chunkSeq}';
+        if (unique.contains(id)) {
+          duplicates.add(content);
+        } else {
+          unique.add(id);
+        }
+      }
+
+      // TODO : no need to delete all the chunks, only delete the duplicated file or a chunk of a vid
+      final toRemove = duplicates.unique((c) => c.name);
+      for (final content in toRemove) {
+        await _deleteChunks(content);
+      }
+
+      if (kDebugMode) {
+        print(
+            'ContentModel.resolveConflicts => deleted content [${toRemove.length}]|${toRemove.map((c) => c.name).toList()}');
+      }
+    } finally {
+      finishLoading();
+    }
   }
 
   Future<void> sync() async {
@@ -122,20 +171,14 @@ class ContentModel extends ChangeNotifier {
     startLoading();
 
     try {
-      var remoteContent = await storageProviderModel.fetchContent();
-
-      // remove duplicated content by filename and chunkSeq.
-      // remoteContent.unique((rc) => '${rc.name}-${rc.chunkSeq}');
-
-      remoteContent.removeWhere((rc) {
-        final alreadyExistsLocally =
-        (_contents.indexWhere((c) => c.id == rc.id) != -1);
-        return alreadyExistsLocally;
-      });
+      final remoteContent = await _getRemoteContent();
 
       if (remoteContent.isNotEmpty) {
         // save all first to have all the chunks available for videos.
         await _contentRepository.saveAll(remoteContent);
+
+        final config = await _configRepository.find();
+        final directories = await config.getPictureDirectories();
 
         // create thumbnails.
         for (var rc in remoteContent) {
@@ -143,14 +186,12 @@ class ContentModel extends ChangeNotifier {
             continue;
           }
 
-          if (rc.hasOtherChunks && await hasPendingChunks(rc.name)) {
+          if (rc.hasOtherChunks && await hasPendingChunksForUpload(rc.name)) {
             // if not all chunks have been updated then we skip it and wait for the next synchronization.
             continue;
           }
 
-          final config = await _configRepository.find();
-          final localFile = await getFileByName(
-              rc.name, await config.getPictureDirectories());
+          final localFile = await getFileByName(rc.name, directories);
           final localFileExists = await localFile?.exists() ?? false;
           if (localFileExists) {
             rc.localPath = localFile!.path;
@@ -169,8 +210,7 @@ class ContentModel extends ChangeNotifier {
           } catch (e) {
             if (kDebugMode) {
               print(
-                  'ContentModel.initState => failed to create thumbnail for ${rc
-                      .name}, assuming bad upload and deleting from storage !');
+                  'ContentModel.initState => failed to create thumbnail for ${rc.name}, assuming bad upload and deleting from storage !');
             }
             // TODO: if thumbnail creation failed, usually the vid isn't well uploaded !
             // _deleteChunks(rc);
@@ -182,7 +222,39 @@ class ContentModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> hasPendingChunks(String filename) async {
+  Future<List<Content>> _getRemoteContent() async {
+    var remoteContent = await storageProviderModel.fetchContent();
+
+    // remove duplicated content by filename and chunkSeq.
+    // remoteContent.unique((rc) => '${rc.name}-${rc.chunkSeq}');
+
+    final allContents = await _contentRepository.find(
+      criteria: SearchCriteria(
+        chunkSeq: null,
+      ),
+    );
+
+    remoteContent.removeWhere((rc) {
+      final alreadyExistsLocally =
+          (allContents.indexWhere((c) => c.id == rc.id) != -1);
+      return alreadyExistsLocally;
+    });
+
+    return remoteContent;
+  }
+
+  bool hasPendingChunks(List<Content> allContents, String filename) {
+    final uploadedChunks =
+        allContents.where((c) => c.name == filename).toList(growable: false);
+
+    if (uploadedChunks.isNotEmpty) {
+      return uploadedChunks.length != uploadedChunks.first.totalChunks;
+    }
+
+    return false;
+  }
+
+  Future<bool> hasPendingChunksForUpload(String filename) async {
     final uploadedChunks = await _contentRepository.find(
       criteria: SearchCriteria(
         name: filename,
@@ -198,12 +270,18 @@ class ContentModel extends ChangeNotifier {
   }
 
   Future<void> search(String query) async {
-    var contents = await _contentRepository.find(
-      criteria: SearchCriteria(
-        name: query,
-      ),
-    );
-    replace(contents);
+    if (query.isEmpty) {
+      await _reload();
+    } else {
+      final newContents = await _contentRepository.find(
+        criteria: SearchCriteria(
+            name: query.trim(),
+            exactName: false,
+            sortBy: 'createdAtMillisSinceEpoch'),
+      );
+
+      replace(newContents);
+    }
   }
 
   void startLoading() {
@@ -237,7 +315,7 @@ class ContentModel extends ChangeNotifier {
       _contents.add(content);
 
       _contents.sort(
-            (a, b) =>
+        (a, b) =>
             b.createdAtMillisSinceEpoch.compareTo(a.createdAtMillisSinceEpoch),
       );
       notifyListeners();
@@ -263,7 +341,7 @@ class ContentModel extends ChangeNotifier {
     startLoading();
 
     var nonNullableContents =
-    contents.where((content) => content != null).cast<Content>().toList();
+        contents.where((content) => content != null).cast<Content>().toList();
 
     await Future.wait(nonNullableContents
         .map((content) async => await _contentRepository.save(content))
@@ -295,9 +373,7 @@ class ContentModel extends ChangeNotifier {
     if (content.hasOtherChunks) {
       final chunks = await _getChunks(content);
 
-      return chunks
-          .map((c) => c.size)
-          .sum;
+      return chunks.map((c) => c.size).sum;
     }
 
     return content.size;
@@ -339,7 +415,8 @@ class ContentModel extends ChangeNotifier {
       return;
     }
 
-    final filesToShare = indices.map((index) => _contents[index].localPath)
+    final filesToShare = indices
+        .map((index) => _contents[index].localPath)
         .where((p) => p != null)
         .map((p) => XFile(p!))
         .toList();
@@ -355,8 +432,7 @@ class ContentModel extends ChangeNotifier {
 
       if (kDebugMode) {
         print(
-            'ContentModel.delete => deleted ${content.name} having ${chunks
-                .length} chunks');
+            'ContentModel.delete => deleted ${content.name} having ${chunks.length} chunks');
       }
     } else {
       await _deleteContent(content);
@@ -375,8 +451,7 @@ class ContentModel extends ChangeNotifier {
 
       if (kDebugMode) {
         print(
-            'ContentModel._deleteContent => Successfully deleted ${content
-                .name}');
+            'ContentModel._deleteContent => Successfully deleted ${content.name}');
       }
 
       _delete(content);
@@ -440,8 +515,7 @@ class ContentModel extends ChangeNotifier {
     if (!cacheExists) {
       if (kDebugMode) {
         print(
-            'ContentModel._loadData => cache miss for [${content
-                .fileType}] - [${content.name}] - [$cacheKey]');
+            'ContentModel._loadData => cache miss for [${content.fileType}] - [${content.name}] - [$cacheKey]');
       }
 
       StorageProvider provider = _getProviderOfContent(content);
@@ -460,8 +534,7 @@ class ContentModel extends ChangeNotifier {
 
         if (kDebugMode) {
           print(
-              'ContentModel._loadData => loading video [${content
-                  .name}], having ${allChunks.length} chunks');
+              'ContentModel._loadData => loading video [${content.name}], having ${allChunks.length} chunks');
         }
         try {
           allChunks.sort((lhs, rhs) => lhs.chunkSeq.compareTo(rhs.chunkSeq));
@@ -547,7 +620,7 @@ class StorageProviderModel extends ChangeNotifier {
         _toString(p.runtimeType) == _toString(provider.runtimeType);
 
     _providers.where(isSameProvider).forEach(
-          (p) async {
+      (p) async {
         if (kDebugMode) {
           print(
               'StorageProviderModel.saveProvider => Replacing existing provider connection !');

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
@@ -36,7 +37,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void dispose() {
     _videoPlayerController.dispose();
 
-    WakelockPlus.disable();
+    if (!kDebugMode) {
+      WakelockPlus.disable();
+    }
 
     super.dispose();
   }

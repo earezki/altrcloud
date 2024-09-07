@@ -14,6 +14,9 @@ class GallerySearchDelegate extends SearchDelegate<String> {
   }
 
   @override
+  String get query => super.query.toLowerCase();
+
+  @override
   List<Widget> buildActions(BuildContext context) {
     return [
       IconButton(
@@ -43,9 +46,6 @@ class GallerySearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildResults(BuildContext context) {
-    final results =
-        _data.where((element) => element.name.contains(query)).toList();
-
     if (query.isEmpty) {
       return ListTile(
         title: const Text('Empty search query!'),
@@ -54,6 +54,10 @@ class GallerySearchDelegate extends SearchDelegate<String> {
         },
       );
     }
+
+    final results = _data
+        .where((element) => element.name.toLowerCase().contains(query))
+        .toList();
 
     final gallery = context.read<GalleryPageModel>();
     gallery.search(query).then((_) => close(context, query));
@@ -73,21 +77,30 @@ class GallerySearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    final suggestions = query.isEmpty
-        ? _data
-        : _data.where((element) => element.name.contains(query)).toList();
+    final suggestions = [
+      _Suggestion(display: 'Screenshots', value: 'screenshot'),
+      _Suggestion(display: 'Images', value: 'img'),
+      _Suggestion(display: 'Videos', value: 'vid'),
+    ];
 
     return ListView.builder(
       itemCount: suggestions.length,
       itemBuilder: (context, index) {
         return ListTile(
-          title: Text(suggestions[index].name),
+          title: Text(suggestions[index].display),
           onTap: () {
-            query = suggestions[index].name;
+            query = suggestions[index].value;
             showResults(context);
           },
         );
       },
     );
   }
+}
+
+class _Suggestion {
+  final String display;
+  final String value;
+
+  _Suggestion({required this.display, required this.value});
 }

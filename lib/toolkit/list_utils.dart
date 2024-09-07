@@ -9,15 +9,17 @@ extension Unique<E, Id> on List<E> {
 
 extension AsyncListExtensions<T> on List<T> {
   Future<void> removeWhereAsync(Future<bool> Function(T) test) async {
-    List<int> indicesToRemove = [];
-    for (var i = 0; i < length; i++) {
-      if (await test(elementAt(i))) {
-        indicesToRemove.add(i);
+    List<T> toRemove = [];
+
+    for (final o in this) {
+      if (await test(o)) {
+        toRemove.add(o);
       }
     }
 
-    for (int idx in indicesToRemove) {
-      removeAt(idx);
+    for (final o in toRemove) {
+      remove(o);
     }
+
   }
 }

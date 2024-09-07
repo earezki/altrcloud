@@ -13,6 +13,7 @@ import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/store.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../toolkit/thumbnails.dart' as thumbnails;
 
@@ -41,6 +42,10 @@ class _HomePageState extends State<HomePage> {
       _asyncInit();
     });
 
+    if (kDebugMode) {
+      WakelockPlus.enable();
+    }
+
     super.initState();
   }
 
@@ -50,6 +55,7 @@ class _HomePageState extends State<HomePage> {
       Permission.audio,
       Permission.videos,
       Permission.photos,
+      Permission.locationWhenInUse,
     ].request();
 
     if (kDebugMode) {
@@ -121,17 +127,13 @@ class _HomePageState extends State<HomePage> {
               controller: _scrollController,
               slivers: <Widget>[
                 SliverAppBar(
+                  leading: _buildLeadingAppBar(galleryPage),
                   pinned: store.loadingFile != null,
                   snap: true,
                   floating: true,
-                  actions: [
-                    PopupMenuButton<String>(
-                      onSelected: (_) => {},
-                      itemBuilder: _popupMenu,
-                    ),
-                  ],
+                  actions: _appBarActions(galleryPage),
                   flexibleSpace: FlexibleSpaceBar(
-                    title: _buildAppBarTitle(),
+                    title: _buildAppBarTitle(galleryPage),
                     background: Container(
                       color: Theme.of(context).colorScheme.inversePrimary,
                     ),
@@ -182,7 +184,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildAppBarTitle() {
+  Widget? _buildLeadingAppBar(GalleryPageModel gallery) {
+    if (gallery.isSelectionMode) {
+      return IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () {
+          gallery.changeSelection(enable: false, index: -1);
+        },
+      );
+    }
+
+    return null;
+  }
+
+  Widget _buildAppBarTitle(GalleryPageModel gallery) {
+    if (gallery.isSelectionMode) {
+      return Text('${gallery.selectionCount}');
+    }
+
     final title = _titles[_selectedTabIndex];
     return Text(title);
   }
@@ -220,28 +239,69 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  List<Widget> _appBarActions(GalleryPageModel gallery) {
+    List<Widget> actions = [];
+
+    if (gallery.isSelectionMode) {
+      actions.add(
+        IconButton(
+          icon: const Icon(Icons.share_outlined),
+          onPressed: () {
+            gallery.shareSelected();
+          },
+        ),
+      );
+      actions.add(
+        IconButton(
+          icon: const Icon(Icons.delete_outline),
+          onPressed: () {
+            showConfirmationDialog(context, () => gallery.deleteSelected());
+          },
+        ),
+      );
+    }
+
+    return [
+      ...actions,
+      PopupMenuButton<String>(
+        onSelected: (_) => {},
+        itemBuilder: _popupMenu,
+      ),
+    ];
+  }
+
   List<PopupMenuEntry<String>> _popupMenu(BuildContext context) {
-    final galleryPage = context.read<GalleryPageModel>();
+    final gallery = context.read<GalleryPageModel>();
     final contents = context.read<ContentModel>();
 
     List<PopupMenuEntry<String>> popupMenus = [];
-    if (galleryPage.isSelectionMode) {
+    if (gallery.isSelectionMode) {
+      popupMenus.add(PopupMenuItem<String>(
+        value: 'Clear selection',
+        child: const ListTile(
+          leading: Icon(Icons.clear),
+          title: Text('Clear selection'),
+        ),
+        onTap: () {
+          gallery.changeSelection(enable: false, index: -1);
+        },
+      ));
       popupMenus.add(PopupMenuItem<String>(
         value: 'Select all',
         child: ListTile(
           leading: Icon(
-            galleryPage.isAllSelected()
+            gallery.isAllSelected()
                 ? Icons.tab_unselected_outlined
                 : Icons.select_all_outlined,
           ),
           title: Text(
-            galleryPage.isAllSelected() ? 'Unselect all' : 'Select all',
+            gallery.isAllSelected() ? 'Unselect all' : 'Select all',
           ),
         ),
         onTap: () {
-          galleryPage.isAllSelected()
-              ? galleryPage.changeSelection(enable: false, index: -1)
-              : galleryPage.selectAll();
+          gallery.isAllSelected()
+              ? gallery.changeSelection(enable: false, index: -1)
+              : gallery.selectAll();
         },
       ));
       if (!contents.isLoading) {
@@ -258,7 +318,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           onTap: () {
-            galleryPage.deleteSelected();
+            showConfirmationDialog(context, () => gallery.deleteSelected());
           },
         ));
         popupMenus.add(PopupMenuItem<String>(
@@ -268,7 +328,7 @@ class _HomePageState extends State<HomePage> {
             title: Text('Share'),
           ),
           onTap: () {
-            galleryPage.shareSelected();
+            gallery.shareSelected();
           },
         ));
       }
@@ -282,6 +342,17 @@ class _HomePageState extends State<HomePage> {
         ),
         onTap: () {
           contents.sync();
+        },
+      ));
+      popupMenus.add(PopupMenuItem<String>(
+        value: 'Resolve conflict',
+        child: const ListTile(
+          leading: Icon(Icons.auto_fix_normal_outlined),
+          title: Text('Resolve conflict'),
+        ),
+        onTap: () {
+          showConfirmationDialog(context,
+              () => contents.resolveConflicts().then((_) => _backupDir()));
         },
       ));
       popupMenus.add(const PopupMenuDivider());

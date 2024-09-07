@@ -176,7 +176,7 @@ class Store extends ChangeNotifier {
       final originalFilename = basename(fileToUpload.path);
       if (isTrash(originalFilename) ||
           (contentModel.hasFilename(originalFilename) &&
-              !(await contentModel.hasPendingChunks(originalFilename)))) {
+              !(await contentModel.hasPendingChunksForUpload(originalFilename)))) {
         continue;
       }
 
