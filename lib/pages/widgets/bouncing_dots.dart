@@ -63,7 +63,7 @@ class Dot extends StatelessWidget {
       width: 5.0,
       height: 5.0,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.inversePrimary,
+        color: Theme.of(context).colorScheme.inversePrimary ,
         shape: BoxShape.circle,
       ),
     );

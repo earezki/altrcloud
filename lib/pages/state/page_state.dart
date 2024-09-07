@@ -78,11 +78,18 @@ class GalleryPageModel extends ChangeNotifier {
 
   void deleteSelected() async {
     if (_selectedIndexList.isNotEmpty) {
-      final contentModel = _contentModel as ContentModel;
-      await contentModel.delete(_selectedIndexList);
+      await _contentModel!.delete(_selectedIndexList);
 
       changeSelection(enable: false, index: -1);
       notifyListeners();
+    }
+  }
+
+  void shareSelected() async {
+    if (_selectedIndexList.isNotEmpty) {
+      await _contentModel!.share(_selectedIndexList);
+
+      changeSelection(enable: false, index: -1);
     }
   }
 

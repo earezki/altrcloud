@@ -20,8 +20,6 @@ class Store extends ChangeNotifier {
   bool _isUploadInProgress = false;
   LoadingFile? _loadingFile;
 
-  final UploadStatusRepository _uploadStatusRepository =
-      UploadStatusRepository();
   final ContentRepository _contentRepository = ContentRepository();
 
   LoadingFile? get loadingFile {
@@ -61,6 +59,8 @@ class Store extends ChangeNotifier {
 
   Store updateContent(ContentModel contentModel) {
     _contentModel = contentModel;
+
+    initState().then((aVoid) => notifyListeners());
 
     return this;
   }
@@ -174,8 +174,9 @@ class Store extends ChangeNotifier {
       }
 
       final originalFilename = basename(fileToUpload.path);
-      if (contentModel.hasFilename(originalFilename) &&
-          !(await contentModel.hasPendingChunks(originalFilename))) {
+      if (isTrash(originalFilename) ||
+          (contentModel.hasFilename(originalFilename) &&
+              !(await contentModel.hasPendingChunks(originalFilename)))) {
         continue;
       }
 
@@ -227,6 +228,9 @@ class Store extends ChangeNotifier {
 
         contentModel.saveChunked(videoContent);
       }
+
+      // redraw after creating the thumbnails.
+      contentModel.notifyListeners();
 
       if (kDebugMode) {
         print('Store => Done backup of [${fileToUpload.path}]');
@@ -358,15 +362,6 @@ class Store extends ChangeNotifier {
       chunkSeq: chunkSeq,
       totalChunks: totalChunks,
       chunkSeqId: chunkSeqId,
-    );
-
-    _uploadStatusRepository.save(
-      UploadStatus(
-        filename: filename,
-        chunksCount: totalChunks,
-        chunkSeq: chunkSeq,
-        chunkSeqId: chunkSeqId,
-      ),
     );
 
     if (result.$1 == BackupStatus.OK && result.$2 != null) {

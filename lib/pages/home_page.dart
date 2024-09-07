@@ -221,10 +221,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<PopupMenuEntry<String>> _popupMenu(BuildContext context) {
-    var galleryPage = context.read<GalleryPageModel>();
-    List<PopupMenuEntry<String>> galleryPagePopupMenus = [];
+    final galleryPage = context.read<GalleryPageModel>();
+    final contents = context.read<ContentModel>();
+
+    List<PopupMenuEntry<String>> popupMenus = [];
     if (galleryPage.isSelectionMode) {
-      galleryPagePopupMenus.add(PopupMenuItem<String>(
+      popupMenus.add(PopupMenuItem<String>(
         value: 'Select all',
         child: ListTile(
           leading: Icon(
@@ -242,27 +244,52 @@ class _HomePageState extends State<HomePage> {
               : galleryPage.selectAll();
         },
       ));
-      galleryPagePopupMenus.add(PopupMenuItem<String>(
-        value: 'Delete',
+      if (!contents.isLoading) {
+        popupMenus.add(PopupMenuItem<String>(
+          value: 'Delete',
+          child: const ListTile(
+            leading: Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+            ),
+            title: Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          onTap: () {
+            galleryPage.deleteSelected();
+          },
+        ));
+        popupMenus.add(PopupMenuItem<String>(
+          value: 'Share',
+          child: const ListTile(
+            leading: Icon(Icons.share_outlined),
+            title: Text('Share'),
+          ),
+          onTap: () {
+            galleryPage.shareSelected();
+          },
+        ));
+      }
+      popupMenus.add(const PopupMenuDivider());
+    } else {
+      popupMenus.add(PopupMenuItem<String>(
+        value: 'Sync',
         child: const ListTile(
-          leading: Icon(
-            Icons.delete_outline,
-            color: Colors.red,
-          ),
-          title: Text(
-            'Delete',
-            style: TextStyle(color: Colors.red),
-          ),
+          leading: Icon(Icons.sync),
+          title: Text('Sync'),
         ),
         onTap: () {
-          galleryPage.deleteSelected();
+          contents.sync();
         },
       ));
-      galleryPagePopupMenus.add(const PopupMenuDivider());
+      popupMenus.add(const PopupMenuDivider());
     }
 
     List<PopupMenuEntry<String>> debugActions = [];
     if (kDebugMode) {
+      debugActions.add(const PopupMenuDivider());
       debugActions.add(PopupMenuItem<String>(
         value: 'Clear cache',
         child: const ListTile(
@@ -284,10 +311,11 @@ class _HomePageState extends State<HomePage> {
           context.read<ContentModel>().clearThumbnails();
         },
       ));
+      debugActions.add(const PopupMenuDivider());
     }
 
     return [
-      ...galleryPagePopupMenus,
+      ...popupMenus,
       PopupMenuItem<String>(
         value: 'Search',
         child: const ListTile(
@@ -362,11 +390,11 @@ class _HomePageState extends State<HomePage> {
                 leading: scaledCircularProgress(0.7),
                 title: Text(
                     '$leadingFilename..${loadingFile.extension}|${getUsedSizeString(loadingFile.size)}'),
-                subtitle:
-                    LinearProgressIndicator(
-                      value: loadingFile.uploadedChunks / loadingFile.totalChunks,
-                    ),
-                trailing: Text('${loadingFile.uploadedChunks}/${loadingFile.totalChunks}'),
+                subtitle: LinearProgressIndicator(
+                  value: loadingFile.uploadedChunks / loadingFile.totalChunks,
+                ),
+                trailing: Text(
+                    '${loadingFile.uploadedChunks}/${loadingFile.totalChunks}'),
               ),
             ),
           ),

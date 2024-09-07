@@ -60,7 +60,7 @@ String getThumbnailFile(Content content) {
   return thumbnailFile;
 }
 
-Future<File> createThumbnail({
+Future<File?> createThumbnail({
   required Content content,
   required String originalPath,
   bool rebuild = false,
@@ -74,15 +74,23 @@ Future<File> createThumbnail({
     }
   }
 
-  if (content.fileType == FileType.PICTURE) {
-    return await _createPictureThumbnail(
-        content: content, originalPath: originalPath);
-  } else if (content.fileType == FileType.VIDEO) {
-    return await _createVideoThumbnail(
-        content: content, originalPath: originalPath);
-  } else {
-    throw 'Unsupported thumbnail type ${content.fileType}';
+  try {
+    if (content.fileType == FileType.PICTURE) {
+      return await _createPictureThumbnail(
+          content: content, originalPath: originalPath);
+    } else if (content.fileType == FileType.VIDEO) {
+      return await _createVideoThumbnail(
+          content: content, originalPath: originalPath);
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      print('createThumbnail => Failed : $e');
+    }
+
+    return null;
   }
+
+  throw 'Unsupported thumbnail type ${content.fileType}';
 }
 
 Future<File> _createVideoThumbnail({
@@ -96,13 +104,13 @@ Future<File> _createVideoThumbnail({
       );
 
   if (thumbnail == null) {
-    throw 'createThumbnailWithFile => Failed thumbnail null';
+    throw '_createVideoThumbnail => [$originalPath] Failed thumbnail null';
   }
 
   await thumbnailFile.writeAsBytes(thumbnail);
 
   if (kDebugMode) {
-    log('''Store._createThumbnail => Creating thumbnail for [${content.name}].
+    log('''_createVideoThumbnail => Creating thumbnail for [${content.name}].
             Size before : [${await thumbnailFile.length()}] bytes, After : [${thumbnail.length}].
             location: [${thumbnailFile.path}]
             ''');
@@ -117,7 +125,7 @@ Future<File> _createPictureThumbnail({
 }) async {
   final thumbnailFile = File(getThumbnailFile(content));
 
-  var thumbnail = await FlutterImageCompress.compressWithFile(
+  final thumbnail = await FlutterImageCompress.compressWithFile(
     originalPath,
     minHeight: _thumbnailSize,
     minWidth: _thumbnailSize,
@@ -125,13 +133,13 @@ Future<File> _createPictureThumbnail({
   );
 
   if (thumbnail == null) {
-    throw 'createThumbnailWithFile => Failed thumbnail null';
+    throw '_createPictureThumbnail => [$originalPath] Failed thumbnail null';
   }
 
   await thumbnailFile.writeAsBytes(thumbnail);
 
   if (kDebugMode) {
-    log('''Store._createThumbnail => Creating thumbnail for [${content.name}].
+    log('''_createPictureThumbnail => Creating thumbnail for [${content.name}].
             Size before : [${await thumbnailFile.length()}] bytes, After : [${thumbnail.length}].
             location: [${thumbnailFile.path}]
             ''');

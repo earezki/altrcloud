@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:multicloud/pages/state/config.dart';
@@ -7,6 +9,7 @@ import 'package:multicloud/toolkit/cache.dart';
 import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'dart:developer' as developer;
 
 class UsedCloudSpace extends StatelessWidget {
   const UsedCloudSpace({super.key});
@@ -255,4 +258,23 @@ class TotalLocalFilesSize extends StatelessWidget {
       value: used / total,
     );
   }
+}
+
+
+class HeapUsage extends StatelessWidget {
+  const HeapUsage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return  Card(
+      child: ListTile(
+        title: const Text('Heap usage'),
+        subtitle: LinearProgressIndicator(
+          value: ProcessInfo.currentRss / ProcessInfo.maxRss,
+        ),
+        trailing: Text('${getUsedSizeString(ProcessInfo.currentRss)} / ${getUsedSizeString(ProcessInfo.maxRss)}'),
+      ),
+    );
+  }
+
 }

@@ -121,7 +121,7 @@ class Github extends StorageProvider {
       log('_lookupCompatibleOrgNameOrFail => ${response.statusCode} : ${response.body}');
     }
 
-    var org = (jsonDecode(response.body) as List<dynamic>)
+    final org = (jsonDecode(response.body) as List<dynamic>)
         .map((json) => json['login'])
         .where((orgName) => orgName.startsWith(_managedOrgPrefix))
         .firstOrNull;
@@ -298,7 +298,7 @@ class Github extends StorageProvider {
 
     if (kDebugMode) {
       print(
-          'Github start backup of file [$filename]/[$chunkSeq] to repo [${repo._name}]');
+          'Github start backup of file [$filename]/[$chunkSeq/$totalChunks] to repo [${repo._name}]');
     }
 
     final response = await _retryOpts.retry(
@@ -386,14 +386,16 @@ class Github extends StorageProvider {
 
   @override
   Future<List<Content>> getContent() async {
-    List<Content> allContents = [];
+    List<Future<List<Content>>> contentFutures = [];
+
     for (final repo in _repositories) {
-      allContents.addAll(
-        await _getContent(repo),
+      contentFutures.add(
+          _getContent(repo)
       );
     }
 
-    return allContents;
+    final allContents = await Future.wait(contentFutures);
+    return allContents.expand((elm) => elm).toList();
   }
 
   Future<List<Content>> _getContent(_Repository repo) async {

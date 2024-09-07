@@ -22,6 +22,7 @@ class SettingsPage extends StatelessWidget {
       UsedCacheSpace(),
       UsedThumbnailSpace(),
       UsedDatabaseSpace(),
+      HeapUsage(),
     ];
 
     return SliverList(

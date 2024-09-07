@@ -9,6 +9,7 @@ import 'package:multicloud/pages/widgets/video_player.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_type.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class PhotoCarouselScreen extends StatefulWidget {
   const PhotoCarouselScreen({super.key, required this.initialIndex});
@@ -156,6 +157,16 @@ class _PhotoCarouselScreenState extends State<PhotoCarouselScreen> {
               },
             ),
           );
+        },
+      ),
+      PopupMenuItem<String>(
+        value: 'Share',
+        child: const ListTile(
+          leading: Icon(Icons.share_outlined),
+          title: Text('Share'),
+        ),
+        onTap: () {
+          Share.shareXFiles([XFile(_selected!.path)]);
         },
       ),
       ...menus

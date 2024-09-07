@@ -47,7 +47,10 @@ Future<int> getDirectorySize(String directory) async {
       continue;
     }
 
-    size += await f.length();
+    final filename = basename(f.path);
+    if (!isTrash(filename)) {
+      size += await f.length();
+    }
   }
 
   return size;
@@ -77,9 +80,16 @@ Future<int> getTotalFiles(Future<List<String>> directories) async {
         continue;
       }
 
-      totalFiles++;
+      final filename = basename(f.path);
+      if (!isTrash(filename)) {
+        totalFiles++;
+      }
     }
   }
 
   return totalFiles;
+}
+
+bool isTrash(String filename) {
+  return filename.startsWith('.trashed');
 }

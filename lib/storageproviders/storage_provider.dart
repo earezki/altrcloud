@@ -47,46 +47,6 @@ enum SourceType {
 
 enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 
-class UploadStatus {
-  final String filename;
-  final int chunksCount;
-  final int chunkSeq;
-  final String? chunkSeqId;
-
-  UploadStatus(
-      {required this.filename,
-      required this.chunksCount,
-      required this.chunkSeq,
-      this.chunkSeqId});
-
-  UploadStatus success() => UploadStatus(
-        filename: filename,
-        chunksCount: chunksCount,
-        chunkSeq: chunkSeq,
-        chunkSeqId: chunkSeqId,
-      );
-
-  UploadStatus failed() => UploadStatus(
-        filename: filename,
-        chunksCount: chunksCount,
-        chunkSeq: chunkSeq,
-        chunkSeqId: chunkSeqId,
-      );
-
-  Map<String, Object?> toMap() => {
-        'filename': filename,
-        'chunkSeq': chunkSeq,
-        'chunkSeqId': chunkSeqId,
-        'chunksCount': chunksCount
-      };
-
-  UploadStatus.fromMap(Map<String, Object?> map)
-      : filename = map['filename'] as String,
-        chunkSeq = map['chunkSeq'] as int,
-        chunkSeqId = map['chunkSeqId'] as String?,
-        chunksCount = map['chunksCount'] as int;
-}
-
 class Content {
   final String id;
   final String storageProviderId;

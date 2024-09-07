@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:multicloud/pages/photo_carousel_screen.dart';
 import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/pages/state/page_state.dart';
@@ -77,22 +78,37 @@ class _GalleryPageState extends State<GalleryPage> {
     );
   }
 
-  Row _buildSectionTitle(DateTime date) {
+  Widget _buildSectionTitle(DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20.0),
+      child: Row(
+        children: [
+          const SizedBox(width: 10),
+          Text(
+            DateFormat.yMMMEd().format(date),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Divider(
+              thickness: 2, // You can customize the thickness of the line here
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+      ),
+    );
     return Row(
       children: [
-        // Line (Divider)
+        const SizedBox(width: 10),
+        Text(DateFormat.yMMMEd().format(date)),
+        const SizedBox(width: 10),
         const Expanded(
           child: Divider(
-            //color: Colors.black,
             thickness: 2, // You can customize the thickness of the line here
           ),
         ),
-
-        // Spacing between line and text
         const SizedBox(width: 10),
-
-        // Text to the far right
-        Text(formatDateOnly(date)),
       ],
     );
   }
@@ -143,10 +159,7 @@ class _GalleryPageState extends State<GalleryPage> {
               width: galleryPage.isSelected(index) ? 15.0 : 0.0,
             ),
           ),
-          child: Hero(
-            tag: 'photo-$index',
-            child: _buildThumbnail(index),
-          ),
+          child: _buildThumbnail(index),
         ),
         onLongPress: () {
           setState(() {
@@ -167,12 +180,19 @@ class _GalleryPageState extends State<GalleryPage> {
 
     return Container(
       decoration: BoxDecoration(
-          image: DecorationImage(
-        image: FileImage(
-          File(thumbnailFilePath),
+        //borderRadius: BorderRadius.circular(20),
+        //border: Border.all(
+        //  color: Theme.of(context).colorScheme.secondary,
+        //  width: 1.0,
+        //),
+
+        image: DecorationImage(
+          image: FileImage(
+            File(thumbnailFilePath),
+          ),
+          fit: BoxFit.fill,
         ),
-        fit: BoxFit.fill,
-      )),
+      ),
       child: thumbnail.fileType == FileType.VIDEO
           ? const Icon(
               Icons.play_circle_outline,

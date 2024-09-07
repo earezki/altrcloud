@@ -6,7 +6,6 @@ import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:unique_identifier/unique_identifier.dart';
 
 enum _Tables { STORAGE_PROVIDER, CONTENT, CONFIG, UPLOAD_STATUS }
 
@@ -31,12 +30,6 @@ class DataSource {
   }
 
   static Future<Database> _create() async {
-    String? identifier = await UniqueIdentifier.serial;
-
-    if (kDebugMode) {
-      print('DataSource: identifier $identifier');
-    }
-
     final databasePath =
         join(await getDatabasesPath(), 'altrcloud_database_32.db');
     if (kDebugMode) {
@@ -164,7 +157,9 @@ class ContentRepository {
   }
 
   Future<Content> findOne(SearchCriteria criteria) async {
+    criteria.sortBy = null;
     final result = await find(criteria: criteria);
+
     if (result.isEmpty) {
       throw 'ContentRepository.findOne => no content found';
     }
@@ -176,7 +171,9 @@ class ContentRepository {
   }
 
   Future<Content?> maybeOne(SearchCriteria criteria) async {
+    criteria.sortBy = null;
     final result = await find(criteria: criteria);
+
     if (result.isEmpty) {
       return null;
     }
@@ -266,7 +263,10 @@ class ContentRepository {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
 
-    return await findOne(SearchCriteria(id: content.id, chunkSeq: -1));
+    return await findOne(SearchCriteria(
+      id: content.id,
+      chunkSeq: -1,
+    ));
   }
 }
 
@@ -283,7 +283,7 @@ class SearchCriteria {
       {this.id,
       this.name,
       this.sortBy,
-      this.sortDirection,
+      this.sortDirection = 'DESC',
       this.chunkSeq = 0,
       this.exactName = true,
       this.chunkSeqId});
@@ -310,8 +310,9 @@ class SearchCriteria {
       sql += wheres.join(' AND ');
     }
 
-    sql +=
-        ' ORDER BY ${sortBy ?? 'createdAtMillisSinceEpoch'} ${sortDirection ?? 'DESC'}';
+    if (sortBy != null) {
+      sql += ' ORDER BY $sortBy $sortDirection';
+    }
 
     return sql;
   }
@@ -360,43 +361,5 @@ class ConfigRepository {
     final {'metadata': json as String} = configMap[0];
 
     return Config.fromMap(jsonDecode(json));
-  }
-}
-
-class UploadStatusRepository {
-  Future<void> save(UploadStatus uploadStatus) async {
-    Database database = await DataSource.instance.database;
-
-    await database.insert(
-      _Tables.UPLOAD_STATUS.name,
-      uploadStatus.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<List<UploadStatus>> find({
-    required String filename,
-    int? chunkSeq,
-  }) async {
-    Database database = await DataSource.instance.database;
-
-    List<String> whereOps = [];
-    whereOps.add('filename = "$filename"');
-    if (chunkSeq != null) {
-      whereOps.add('chunkSeq = $chunkSeq');
-    }
-
-    final sql =
-        'SELECT * FROM ${_Tables.UPLOAD_STATUS.name} WHERE ${whereOps.join(' AND ')}';
-
-    final List<Map<String, Object?>> uploadStatuses =
-        await database.rawQuery(sql);
-
-    if (kDebugMode) {
-      print(
-          'UploadStatusRepository.find => $sql | total result : [${uploadStatuses.length}]');
-    }
-
-    return uploadStatuses.map((map) => UploadStatus.fromMap(map)).toList();
   }
 }
