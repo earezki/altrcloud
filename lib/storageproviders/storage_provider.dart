@@ -47,6 +47,7 @@ enum SourceType {
 
 enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 
+typedef LoadingCallback = void Function(Content content, int uploadedChunks);
 class Content {
   final String id;
   final String storageProviderId;

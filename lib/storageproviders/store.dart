@@ -1,12 +1,15 @@
 import 'dart:io';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/pages/state/config.dart';
 import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/storageproviders/data_source.dart';
+import 'package:multicloud/storageproviders/loading_file.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_type.dart';
 import 'package:multicloud/toolkit/file_utils.dart';
+import 'package:multicloud/toolkit/list_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
@@ -176,7 +179,8 @@ class Store extends ChangeNotifier {
       final originalFilename = basename(fileToUpload.path);
       if (isTrash(originalFilename) ||
           (contentModel.hasFilename(originalFilename) &&
-              !(await contentModel.hasPendingChunksForUpload(originalFilename)))) {
+              !(await contentModel
+                  .hasPendingChunksForUpload(originalFilename)))) {
         continue;
       }
 
@@ -369,21 +373,108 @@ class Store extends ChangeNotifier {
     }
     return null;
   }
-}
 
-class LoadingFile {
-  String filename;
-  int size;
+  Future<void> sync() async {
+    if (contentModel.isLoading) {
+      return;
+    }
 
-  int totalChunks;
-  int uploadedChunks;
+    _reinit();
+    contentModel.startLoading();
+    _isUploadInProgress = true;
 
-  String get extension => getExt(filename);
+    try {
+      final remoteContent = await _getRemoteContent();
 
-  LoadingFile({
-    required this.filename,
-    required this.size,
-    required this.totalChunks,
-    required this.uploadedChunks,
-  });
+      if (remoteContent.isNotEmpty) {
+        // save all first to have all the chunks available for videos.
+        //  await _contentRepository.saveAll(remoteContent);
+
+        // create thumbnails.
+        for (var rc in remoteContent) {
+          if (rc.isNotPrimaryChunk) {
+            continue;
+          }
+
+          if (rc.hasOtherChunks &&
+              await contentModel.hasPendingChunksForUpload(rc.name)) {
+            // if not all chunks have been updated then we skip it and wait for the next synchronization.
+            continue;
+          }
+
+          //  final localFile = await getFileByName(rc.name, directories);
+          //  rc.localPath = localFile?.path;
+
+          List<Content> allChunks = contentModel.getChunksOf(remoteContent, rc);
+          final totalSize = sum(allChunks.map((c) => c.size));
+          rc = await contentModel.loadData(
+            rc,
+            chunksContents: remoteContent,
+            loadingCallback: (content, uploadedChunks) => _setLoadingFile(
+              filename: content.name,
+              size: totalSize,
+              totalChunks: content.totalChunks,
+              uploadedChunks: uploadedChunks,
+            ),
+          );
+
+          await _contentRepository
+              .saveAll(allChunks);
+
+          try {
+            await createThumbnail(
+              content: rc,
+              originalPath: rc.path,
+            );
+
+            await _contentRepository.update(rc);
+            contentModel.add(rc);
+          } catch (e) {
+            if (kDebugMode) {
+              print(
+                  'ContentModel.initState => failed to create thumbnail for ${rc.name}, assuming bad upload and deleting from storage !');
+            }
+            // TODO: if thumbnail creation failed, usually the vid isn't well uploaded !
+            // _deleteChunks(rc);
+          }
+        }
+      }
+    } finally {
+      _reinit();
+      contentModel.finishLoading();
+    }
+  }
+
+  Future<List<Content>> _getRemoteContent() async {
+    var remoteContent = await storageProviderModel.fetchContent();
+
+    // remove duplicated content by filename and chunkSeq.
+    // remoteContent.unique((rc) => '${rc.name}-${rc.chunkSeq}');
+
+    final allContents = await _contentRepository.find(
+      criteria: SearchCriteria(
+        chunkSeq: null,
+      ),
+    );
+
+    // TODO: retain those with null path even if it's existing locally
+    remoteContent.removeWhere((rc) {
+      final alreadyExistsLocally =
+          (allContents.indexWhere((c) => c.id == rc.id) != -1);
+      return alreadyExistsLocally;
+    });
+
+    remoteContent.sort(
+      (a, b) {
+        final comp =
+            b.createdAtMillisSinceEpoch.compareTo(a.createdAtMillisSinceEpoch);
+        if (comp != 0) {
+          return comp;
+        }
+        return a.chunkSeq.compareTo(b.chunkSeq);
+      },
+    );
+
+    return remoteContent;
+  }
 }

@@ -273,6 +273,7 @@ class _HomePageState extends State<HomePage> {
   List<PopupMenuEntry<String>> _popupMenu(BuildContext context) {
     final gallery = context.read<GalleryPageModel>();
     final contents = context.read<ContentModel>();
+    final store = context.read<Store>();
 
     List<PopupMenuEntry<String>> popupMenus = [];
     if (gallery.isSelectionMode) {
@@ -341,7 +342,7 @@ class _HomePageState extends State<HomePage> {
           title: Text('Sync'),
         ),
         onTap: () {
-          contents.sync();
+          store.sync();
         },
       ));
       popupMenus.add(PopupMenuItem<String>(

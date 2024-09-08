@@ -163,87 +163,6 @@ class ContentModel extends ChangeNotifier {
     }
   }
 
-  Future<void> sync() async {
-    if (isLoading) {
-      return;
-    }
-
-    startLoading();
-
-    try {
-      final remoteContent = await _getRemoteContent();
-
-      if (remoteContent.isNotEmpty) {
-        // save all first to have all the chunks available for videos.
-        //  await _contentRepository.saveAll(remoteContent);
-
-        // create thumbnails.
-        for (var rc in remoteContent) {
-          if (rc.isNotPrimaryChunk) {
-            continue;
-          }
-
-          if (rc.hasOtherChunks && await hasPendingChunksForUpload(rc.name)) {
-            // if not all chunks have been updated then we skip it and wait for the next synchronization.
-            continue;
-          }
-
-          //  final localFile = await getFileByName(rc.name, directories);
-          //  rc.localPath = localFile?.path;
-
-          rc = await _loadData(rc, chunksContents: remoteContent);
-          _contentRepository.saveAll(_getChunksOf(remoteContent, rc));
-
-          try {
-            await createThumbnail(
-              content: rc,
-              originalPath: rc.path,
-            );
-
-            await _contentRepository.update(rc);
-            add(rc);
-          } catch (e) {
-            if (kDebugMode) {
-              print(
-                  'ContentModel.initState => failed to create thumbnail for ${rc.name}, assuming bad upload and deleting from storage !');
-            }
-            // TODO: if thumbnail creation failed, usually the vid isn't well uploaded !
-            // _deleteChunks(rc);
-          }
-        }
-      }
-    } finally {
-      finishLoading();
-    }
-  }
-
-  Future<List<Content>> _getRemoteContent() async {
-    var remoteContent = await storageProviderModel.fetchContent();
-
-    // remove duplicated content by filename and chunkSeq.
-    // remoteContent.unique((rc) => '${rc.name}-${rc.chunkSeq}');
-
-    final allContents = await _contentRepository.find(
-      criteria: SearchCriteria(
-        chunkSeq: null,
-      ),
-    );
-
-    // TODO: retain those with null path even if it's existing locally
-    remoteContent.removeWhere((rc) {
-      final alreadyExistsLocally =
-          (allContents.indexWhere((c) => c.id == rc.id) != -1);
-      return alreadyExistsLocally;
-    });
-
-    remoteContent.sort(
-          (a, b) =>
-          b.createdAtMillisSinceEpoch.compareTo(a.createdAtMillisSinceEpoch),
-    );
-
-    return remoteContent;
-  }
-
   bool hasPendingChunks(List<Content> allContents, String filename) {
     final uploadedChunks =
         allContents.where((c) => c.name == filename).toList(growable: false);
@@ -390,7 +309,7 @@ class ContentModel extends ChangeNotifier {
     return 1;
   }
 
-  List<Content> _getChunksOf(List<Content> contents, Content content) {
+  List<Content> getChunksOf(List<Content> contents, Content content) {
     final chunkSeqId = content.chunkSeqId;
     if (chunkSeqId == null) {
       return [content];
@@ -487,7 +406,7 @@ class ContentModel extends ChangeNotifier {
 
   Future<Content> loadContent(int index) async {
     var content = _contents[index];
-    return await _loadData(content);
+    return await loadData(content);
   }
 
   Future<Uint8List> loadContentBytes(int index) async {
@@ -506,13 +425,16 @@ class ContentModel extends ChangeNotifier {
   }
 
   Future<Uint8List> loadDataBytes(Content content) async {
-    final loadedContent = await _loadData(content);
+    final loadedContent = await loadData(content);
     final localFile = File(loadedContent.localPath!);
     return await localFile.readAsBytes();
   }
 
-  Future<Content> _loadData(Content content,
-      {List<Content>? chunksContents}) async {
+  Future<Content> loadData(
+    Content content, {
+    List<Content>? chunksContents,
+    LoadingCallback? loadingCallback,
+  }) async {
     if (content.localPathAvailable) {
       if (await File(content.localPath!).exists()) {
         return content;
@@ -532,7 +454,19 @@ class ContentModel extends ChangeNotifier {
     content.localPath = cacheFile.path;
 
     // TODO : more than if the file exists, check it's size if it's the same as in content.size
-    if (!(await cacheFile.exists())) {
+    final allChunks = chunksContents == null
+        ? await _getChunks(content)
+        : getChunksOf(chunksContents, content);
+
+
+    final totalSize = allChunks.map((c) => c.size).sum;
+
+    final cacheExists = await cacheFile.exists();
+    if (cacheExists) {
+      final cacheFileSize = await cacheFile.length();
+
+    }
+    if (!(cacheExists)) {
       if (kDebugMode) {
         print(
             'ContentModel._loadData => cache miss for [${content.fileType}] - [${content.name}]');
@@ -541,12 +475,13 @@ class ContentModel extends ChangeNotifier {
       StorageProvider provider = _getProviderOfContent(content);
 
       if (content.fileType == FileType.PICTURE) {
+        if (loadingCallback != null) {
+          loadingCallback(content, 0);
+        }
+
         final result = await provider.loadData(content);
         await cacheFile.writeAsBytes(result.$2);
       } else if (content.fileType == FileType.VIDEO && content.isPrimaryChunk) {
-        final allChunks = chunksContents == null
-            ? await _getChunks(content)
-            : _getChunksOf(chunksContents, content);
 
         allChunks.sort((lhs, rhs) => lhs.chunkSeq.compareTo(rhs.chunkSeq));
 
@@ -554,7 +489,6 @@ class ContentModel extends ChangeNotifier {
           print(
               'ContentModel._loadData => loading video [${content.name}], having ${allChunks.length} chunks');
         }
-        final randomAccessFile = await cacheFile.open(mode: FileMode.append);
         try {
           /* TODO:
               each chunk should be stored in a temp file, then afterwards merge the chunks info the result file,
@@ -566,10 +500,17 @@ class ContentModel extends ChangeNotifier {
           //}
 
           // make sure all chunks are loaded to cache files.
-          for (Content chunk in allChunks) {
+          for (int i = 0; i < allChunks.length; i++) {
+            final chunk = allChunks[i];
+
+            if (loadingCallback != null) {
+              loadingCallback(chunk, i);
+            }
+
             final chunkFile = await cache.getCacheFileOfContent(chunk);
-            if (kDebugMode ) {
-              print('_loadData => loading ${chunk.name}|[${chunk.chunkSeq}/${chunk.totalChunks}]');
+            if (kDebugMode) {
+              print(
+                  '_loadData => loading ${chunk.name}|[${chunk.chunkSeq}/${chunk.totalChunks}]');
             }
 
             if (!(await chunkFile.exists())) {
@@ -578,14 +519,19 @@ class ContentModel extends ChangeNotifier {
             }
           }
 
-          for (Content chunk in allChunks) {
-            final chunkFile = await cache.getCacheFileOfContent(chunk);
-            await randomAccessFile.writeFrom(await chunkFile.readAsBytes());
-          }
+          final randomAccessFile = await cacheFile.open(mode: FileMode.append);
+          try {
+            for (Content chunk in allChunks) {
+              final chunkFile = await cache.getCacheFileOfContent(chunk);
+              await randomAccessFile.writeFrom(await chunkFile.readAsBytes());
+            }
 
-          for (Content chunk in allChunks) {
-            final chunkFile = await cache.getCacheFileOfContent(chunk);
-            await chunkFile.delete();
+            for (Content chunk in allChunks) {
+              final chunkFile = await cache.getCacheFileOfContent(chunk);
+              await chunkFile.delete();
+            }
+          } finally {
+            await randomAccessFile.close();
           }
 
           /*
@@ -601,9 +547,7 @@ class ContentModel extends ChangeNotifier {
             await randomAccessFile.writeFrom(chunk.$2);
           }
           */
-        } finally {
-          await randomAccessFile.close();
-        }
+        } finally {}
 
         if (kDebugMode) {
           print(

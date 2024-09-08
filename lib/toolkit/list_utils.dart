@@ -20,6 +20,13 @@ extension AsyncListExtensions<T> on List<T> {
     for (final o in toRemove) {
       remove(o);
     }
-
   }
+}
+
+int sum(Iterable<int> ints) {
+  var result = 0;
+  for (final value in ints) {
+    result += value;
+  }
+  return result;
 }

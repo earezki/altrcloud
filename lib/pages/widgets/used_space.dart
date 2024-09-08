@@ -240,7 +240,7 @@ class TotalLocalFilesSize extends StatelessWidget {
     }
 
     final used = snapshot.data![0];
-    final total = snapshot.data![1] > 0 ? snapshot.data![1] : 1;
+    final total = snapshot.data![1];
 
     return Text('${getUsedSizeString(used)} / ${getUsedSizeString(total)}');
   }
@@ -254,7 +254,7 @@ class TotalLocalFilesSize extends StatelessWidget {
     }
 
     final used = snapshot.data![0];
-    final total = snapshot.data![1];
+    final total = snapshot.data![1] > 0 ? snapshot.data![1] : 1;
     return LinearProgressIndicator(
       value: used / total,
     );
