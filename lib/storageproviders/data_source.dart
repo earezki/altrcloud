@@ -141,19 +141,27 @@ class StorageProviderRepository {
 
 class ContentRepository {
   Future<void> saveAll(List<Content> contents) async {
-    for (Content c in contents) {
-      await save(c);
-    }
+    Database database = await DataSource.instance.database;
+
+    database.transaction(
+      (tx) async {
+        for (Content c in contents) {
+          await save(c, tx: tx);
+        }
+      },
+    );
   }
 
-  Future<void> save(Content content) async {
-    Database database = await DataSource.instance.database;
+  Future<Content> save(Content content, {DatabaseExecutor? tx}) async {
+    DatabaseExecutor database = tx ?? await DataSource.instance.database;
 
     await database.insert(
       _Tables.CONTENT.name,
       content.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+
+    return content;
   }
 
   Future<Content> findOne(SearchCriteria criteria) async {

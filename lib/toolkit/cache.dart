@@ -1,11 +1,17 @@
 import 'dart:io';
 
+import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:path_provider/path_provider.dart';
 
-Future<File> getCacheFile(String key) async {
+Future<File> getCacheFileOfContent(Content content) async {
+  final cacheKey = content.id;
+  return await getCacheFile(cacheKey);
+}
+
+Future<File> getCacheFile(String cacheKey) async {
   final dir = await getCacheDirectory();
-  return File('$dir/$key');
+  return File('$dir/$cacheKey');
 }
 
 Future<String> getCacheDirectory() async {
