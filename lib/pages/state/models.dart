@@ -419,9 +419,24 @@ class ContentModel extends ChangeNotifier {
     return _thumbnails[index];
   }
 
-  String thumbnailFilepath(int index) {
+  Future<String> thumbnailFile(int index) async {
     var content = _thumbnails[index];
-    return getThumbnailFile(content);
+    final thumbnail = getThumbnailFile(content);
+
+    if (await File(thumbnail).exists()) {
+      return thumbnail;
+    }
+
+    if (!content.localPathAvailable) {
+      content = await loadData(content);
+    }
+
+    await createThumbnail(
+      content: content,
+      originalPath: content.path,
+    );
+
+    return thumbnail;
   }
 
   Future<Uint8List> loadDataBytes(Content content) async {
@@ -443,7 +458,7 @@ class ContentModel extends ChangeNotifier {
 
     final config = await _configRepository.find();
     final localFile =
-        await getFileByName(content.name, await config.getPictureDirectories());
+        await getFileByName(content.name, await config.getDirectories());
     if (localFile != null && (await localFile.exists())) {
       content.localPath = localFile.path;
       return await _contentRepository.save(content);
@@ -458,14 +473,9 @@ class ContentModel extends ChangeNotifier {
         ? await _getChunks(content)
         : getChunksOf(chunksContents, content);
 
-
-    final totalSize = allChunks.map((c) => c.size).sum;
-
     final cacheExists = await cacheFile.exists();
-    if (cacheExists) {
-      final cacheFileSize = await cacheFile.length();
 
-    }
+    //TODO check the size of the cache against the total size of the chunks.
     if (!(cacheExists)) {
       if (kDebugMode) {
         print(
@@ -482,7 +492,6 @@ class ContentModel extends ChangeNotifier {
         final result = await provider.loadData(content);
         await cacheFile.writeAsBytes(result.$2);
       } else if (content.fileType == FileType.VIDEO && content.isPrimaryChunk) {
-
         allChunks.sort((lhs, rhs) => lhs.chunkSeq.compareTo(rhs.chunkSeq));
 
         if (kDebugMode) {

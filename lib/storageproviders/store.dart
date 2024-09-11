@@ -133,7 +133,7 @@ class Store extends ChangeNotifier {
       return;
     }
 
-    var pictureDirectories = await configModel.pictureDirectories;
+    var pictureDirectories = await configModel.directories;
 
     if (kDebugMode) {
       print('Store.backup => picture folders: $pictureDirectories');
@@ -152,10 +152,16 @@ class Store extends ChangeNotifier {
         // we only have one provider (Github) currently.
         final provider = providers[SupportedBackupType.PICTURES]!;
 
-        await _upload(
-          pictureDir,
-          provider,
-        );
+        try {
+          await _upload(
+            pictureDir,
+            provider,
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            print('Store.backup => backup failed [$pictureDir]: $e');
+          }
+        }
       }
     } catch (e) {
       if (kDebugMode) {

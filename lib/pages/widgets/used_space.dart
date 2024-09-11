@@ -163,7 +163,7 @@ class TotalLocalFiles extends StatelessWidget {
       child: FutureBuilder<List<dynamic>>(
         future: Future.wait([
           repository.totalPrimary(),
-          getTotalFiles(context.read<ConfigModel>().pictureDirectories),
+          getTotalFiles(context.read<ConfigModel>().directories),
         ]),
         builder: (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
           return ListTile(
@@ -218,7 +218,7 @@ class TotalLocalFilesSize extends StatelessWidget {
       child: FutureBuilder<List<dynamic>>(
         future: Future.wait([
           repository.totalSize(),
-          getDirectoriesSize(context.read<ConfigModel>().pictureDirectories),
+          getDirectoriesSize(context.read<ConfigModel>().directories),
         ]),
         builder: (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
           return ListTile(

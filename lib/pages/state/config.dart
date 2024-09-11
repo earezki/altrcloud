@@ -16,9 +16,9 @@ class ConfigModel extends ChangeNotifier {
     return uploadEnabled && autoUpload;
   }
 
-  Future<List<String>> get pictureDirectories async {
+  Future<List<String>> get directories async {
     final config = await _configRepository.find();
-    return await config.getPictureDirectories();
+    return await config.getDirectories();
   }
 
   Future<void> uploadOnlyOnWifi(bool uploadOnlyOnWifi) async {

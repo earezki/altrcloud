@@ -6,7 +6,7 @@ import 'package:multicloud/pages/photo_carousel_screen.dart';
 import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/pages/state/page_state.dart';
 import 'package:multicloud/toolkit/file_type.dart';
-import 'package:multicloud/toolkit/utils.dart';
+import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:provider/provider.dart';
 
 class GalleryPage extends StatefulWidget {
@@ -30,6 +30,13 @@ class _GalleryPageState extends State<GalleryPage> {
   Widget build(BuildContext context) {
     final thumbnails = widget.content.thumbnails;
     if (thumbnails.isEmpty) {
+      if (widget.content.isLoading) {
+        return const SliverFillRemaining(
+          hasScrollBody: false,
+          child: CircularProgressIndicator(),
+        );
+      }
+
       return const SliverFillRemaining(
         hasScrollBody: false,
         child: Center(child: Text('No images found !')),
@@ -176,30 +183,43 @@ class _GalleryPageState extends State<GalleryPage> {
   Widget _buildThumbnail(int index) {
     final thumbnail = widget.content.thumbnail(index);
 
-    final thumbnailFilePath = widget.content.thumbnailFilepath(index);
+    return FutureBuilder<String>(
+      future: widget.content.thumbnailFile(index),
+      builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+        if (!snapshot.hasData) {
+          return Center(
+            child: halfSizedCircularProgress(),
+          );
+        } else if (snapshot.error != null) {
+          return const Center(
+            child: Icon(Icons.error),
+          );
+        } else {
+          return Container(
+            decoration: BoxDecoration(
+              //borderRadius: BorderRadius.circular(20),
+              //border: Border.all(
+              //  color: Theme.of(context).colorScheme.secondary,
+              //  width: 1.0,
+              //),
 
-    return Container(
-      decoration: BoxDecoration(
-        //borderRadius: BorderRadius.circular(20),
-        //border: Border.all(
-        //  color: Theme.of(context).colorScheme.secondary,
-        //  width: 1.0,
-        //),
-
-        image: DecorationImage(
-          image: FileImage(
-            File(thumbnailFilePath),
-          ),
-          fit: BoxFit.fill,
-        ),
-      ),
-      child: thumbnail.fileType == FileType.VIDEO
-          ? const Icon(
-              Icons.play_circle_outline,
-              color: Colors.white,
-              size: 48,
-            )
-          : null,
+              image: DecorationImage(
+                image: FileImage(
+                  File(snapshot.data!),
+                ),
+                fit: BoxFit.fill,
+              ),
+            ),
+            child: thumbnail.fileType == FileType.VIDEO
+                ? const Icon(
+                    Icons.play_circle_outline,
+                    color: Colors.white,
+                    size: 48,
+                  )
+                : null,
+          );
+        }
+      },
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:external_path/external_path.dart';
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/toolkit/connectivity.dart' as connectivity;
@@ -225,19 +227,39 @@ class Config {
     return isWifiEnabled;
   }
 
-  Future<List<String>> getPictureDirectories() async {
+  Future<List<String>> getDirectories() async {
     if (_pictureDirectories.isNotEmpty) {
       return _pictureDirectories;
     }
 
-    var pictures = await ExternalPath.getExternalStoragePublicDirectory(
+    final pictures = await ExternalPath.getExternalStoragePublicDirectory(
       ExternalPath.DIRECTORY_PICTURES,
     );
 
-    var dcim = await ExternalPath.getExternalStoragePublicDirectory(
+    final screenshots = await ExternalPath.getExternalStoragePublicDirectory(
+      ExternalPath.DIRECTORY_SCREENSHOTS,
+    );
+
+    final dcim = await ExternalPath.getExternalStoragePublicDirectory(
       ExternalPath.DIRECTORY_DCIM,
     );
 
-    return [pictures, dcim];
+    final videos = await ExternalPath.getExternalStoragePublicDirectory(
+      ExternalPath.DIRECTORY_MOVIES,
+    );
+
+    final List<String> directories = [];
+
+    for (final dir in [pictures, screenshots, dcim, videos]) {
+      if (await Directory(dir).exists()) {
+        directories.add(dir);
+      }
+    }
+
+    if (kDebugMode) {
+      print('Config.getDirectories => $directories');
+    }
+
+    return directories;
   }
 }
