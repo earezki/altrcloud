@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 
+const trashFilePredix = '.trashed';
+
 Future<File?> getFileByName(
     String requiredFilename, List<String> directories) async {
   for (final directory in directories) {
@@ -91,5 +93,26 @@ Future<int> getTotalFiles(Future<List<String>> directories) async {
 }
 
 bool isTrash(String filename) {
-  return filename.startsWith('.trashed');
+  return filename.startsWith(trashFilePredix);
+}
+
+Future<void> recycle(String path) async {
+  final file = File(path);
+  final exists = await file.exists();
+
+  if (exists) {
+    if (kDebugMode) {
+      print('recycle => deleting [$path] ...');
+    }
+
+    //final filename = basename(path);
+    //final dir = dirname(path);
+
+    //if (isTrash(filename)) {
+    await file.delete();
+    // }
+    //else {
+    //  await file.rename('$dir/$trashFilePredix-$filename');
+    //}
+  }
 }

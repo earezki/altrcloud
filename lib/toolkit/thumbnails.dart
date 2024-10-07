@@ -99,9 +99,11 @@ Future<File> _createVideoThumbnail({
 }) async {
   final thumbnailFile = File(getThumbnailFile(content));
 
-  final thumbnail = await VideoCompressV2.getByteThumbnail(originalPath,
-      quality: _thumbnailQuality, position: -1 // default(-1)
-      );
+  final thumbnail = await VideoCompressV2.getByteThumbnail(
+    originalPath,
+    quality: _thumbnailQuality,
+    position: -1, // default(-1)
+  );
 
   if (thumbnail == null) {
     throw '_createVideoThumbnail => [$originalPath] Failed thumbnail null';

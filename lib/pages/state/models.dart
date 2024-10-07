@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -7,7 +8,7 @@ import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/cache.dart' as cache;
 import 'package:multicloud/toolkit/file_type.dart';
-import 'package:multicloud/toolkit/file_utils.dart';
+import 'package:multicloud/toolkit/file_utils.dart' as fileutils;
 import 'package:multicloud/toolkit/list_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
 import 'package:multicloud/toolkit/utils.dart';
@@ -125,6 +126,25 @@ class ContentModel extends ChangeNotifier {
     finishLoading();
   }
 
+  List<Content> _getDuplicates(List<Content> list) {
+    Set<String> unique = {};
+    List<Content> duplicates = [];
+    for (final content in list) {
+      final id = '${content.name}|${content.chunkSeq}';
+      if (unique.contains(id)) {
+        duplicates.add(content);
+      } else {
+        unique.add(id);
+      }
+    }
+
+    return duplicates;
+  }
+
+  /**
+      TODO add documentation.
+      deletes duplicated files with the same name and same chunck sequence from local and remote storage.
+   */
   Future<void> resolveConflicts() async {
     if (isLoading) {
       return;
@@ -132,35 +152,84 @@ class ContentModel extends ChangeNotifier {
 
     startLoading();
     try {
-      final allContents = await _contentRepository.find(
-        criteria: SearchCriteria(
-          chunkSeq: null,
-        ),
-      );
-      Set<String> unique = {};
-      List<Content> duplicates = [];
-      for (final content in allContents) {
-        final id = '${content.name}|${content.chunkSeq}';
-        if (unique.contains(id)) {
-          duplicates.add(content);
+      final remoteContents = await storageProviderModel.fetchContent();
+      Map<String, List<Content>> contentsByFilename = {};
+      // group by 'name | chunkSeq'
+      for (final content in _getDuplicates(remoteContents)) {
+        remoteContents
+            .where(
+                (c) => c.name == content.name && c.chunkSeq == content.chunkSeq)
+            .forEach(
+          (c) {
+            String key = '${c.name}|${c.chunkSeq}';
+            if (!contentsByFilename.containsKey(key)) {
+              contentsByFilename[key] = [];
+            }
+            contentsByFilename[key]!.add(c);
+          },
+        );
+      }
+
+      // Sort by the number of already uploaded chunks.
+      for (final entry in contentsByFilename.entries) {
+        entry.value.sort(
+          (lhs, rhs) {
+            final lhsChunksLength = getChunksOf(remoteContents, lhs).length;
+            final rhsChunksLength = getChunksOf(remoteContents, rhs).length;
+
+            return rhsChunksLength.compareTo(lhsChunksLength);
+          },
+        );
+      }
+
+      // delete
+      Set<String?> deletedChunkSeqId = {};
+      for (final entry in contentsByFilename.entries) {
+        final toDelete = entry.value
+            .skip(1) // keep the first element, and delete the rest.
+            .whereNot((c) => deletedChunkSeqId.contains(c.chunkSeqId))
+            .map((c) {
+          deletedChunkSeqId.add(c.chunkSeqId);
+          return c;
+        }).toList(growable: false);
+
+        if (_hasSameSequenceId(entry.value)) {
+          for (final c in toDelete) {
+            await _deleteContent(c);
+          }
         } else {
-          unique.add(id);
+          for (final c in toDelete) {
+            await _deleteAllChunks(getChunksOf(remoteContents, c));
+          }
         }
-      }
 
-      // TODO : no need to delete all the chunks, only delete the duplicated file or a chunk of a vid
-      final toRemove = duplicates.unique((c) => c.name);
-      for (final content in toRemove) {
-        await _deleteChunks(content);
-      }
+        // TODO: delete local duplicates from db.
 
-      if (kDebugMode) {
-        print(
-            'ContentModel.resolveConflicts => deleted content [${toRemove.length}]|${toRemove.map((c) => c.name).toList()}');
+        if (kDebugMode) {
+          for (final c in toDelete) {
+            print(
+                "resolveConflicts => deleted (${_hasSameSequenceId(entry.value) ? 'one' : 'all'}): ${c.chunkSeqId}|${c.name}|${c.chunkSeq}|${c.totalChunks}|${getChunksOf(remoteContents, c).length}|${c.downloadUrl}");
+          }
+        }
       }
     } finally {
       finishLoading();
     }
+  }
+
+  bool _hasSameSequenceId(List<Content> contents) {
+    if (contents.isEmpty) {
+      return false;
+    }
+
+    final firstSequenceId = contents[0].chunkSeqId;
+    for (final c in contents) {
+      if (c.chunkSeqId != firstSequenceId) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   bool hasPendingChunks(List<Content> allContents, String filename) {
@@ -326,7 +395,10 @@ class ContentModel extends ChangeNotifier {
     );
   }
 
-  Future<void> delete(List<int> indices) async {
+  Future<void> delete(
+    List<int> indices, {
+    bool deleteFromRemote = false,
+  }) async {
     if (isLoading) {
       return;
     }
@@ -334,8 +406,28 @@ class ContentModel extends ChangeNotifier {
     startLoading();
 
     final contentsToDelete = indices.map((index) => _contents[index]).toList();
+
     for (var content in contentsToDelete) {
-      await _deleteChunks(content);
+      try {
+        /**
+         * TODO, not delete but add a flag to say it's in the trash !
+         */
+        if (kDebugMode) {
+          print('Deleting from device ...');
+        }
+
+        if (content.localPathAvailable) {
+          await fileutils.recycle(content.path);
+        }
+
+        if (deleteFromRemote) {
+          await _deleteChunks(content);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('Failed to delete file: $e');
+        }
+      }
     }
 
     finishLoading();
@@ -354,12 +446,16 @@ class ContentModel extends ChangeNotifier {
     await Share.shareXFiles(filesToShare);
   }
 
+  Future<void> _deleteAllChunks(List<Content> chunks) async {
+    for (Content chunk in chunks) {
+      await _deleteContent(chunk);
+    }
+  }
+
   Future<void> _deleteChunks(Content content) async {
     if (content.hasOtherChunks) {
       final chunks = await _getChunks(content);
-      for (Content chunk in chunks) {
-        await _deleteContent(chunk);
-      }
+      await _deleteAllChunks(chunks);
 
       if (kDebugMode) {
         print(
@@ -378,7 +474,7 @@ class ContentModel extends ChangeNotifier {
     StorageProvider provider = _getProviderOfContent(content);
     try {
       await provider.delete(content);
-      await _contentRepository.deleteByName(content);
+      await _contentRepository.deleteById(content);
 
       if (kDebugMode) {
         print(
@@ -457,8 +553,8 @@ class ContentModel extends ChangeNotifier {
     }
 
     final config = await _configRepository.find();
-    final localFile =
-        await getFileByName(content.name, await config.getDirectories());
+    final localFile = await fileutils.getFileByName(
+        content.name, await config.getDirectories());
     if (localFile != null && (await localFile.exists())) {
       content.localPath = localFile.path;
       return await _contentRepository.save(content);

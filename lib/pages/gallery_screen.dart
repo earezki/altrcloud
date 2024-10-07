@@ -33,7 +33,9 @@ class _GalleryPageState extends State<GalleryPage> {
       if (widget.content.isLoading) {
         return const SliverFillRemaining(
           hasScrollBody: false,
-          child: CircularProgressIndicator(),
+          child: Center(
+            child: CircularProgressIndicator(),
+          ),
         );
       }
 

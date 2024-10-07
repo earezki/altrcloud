@@ -13,6 +13,7 @@ class GalleryPageModel extends ChangeNotifier {
 
   UnmodifiableListView<int> get selectedIndexList =>
       UnmodifiableListView(_selectedIndexList);
+
   int get selectionCount => _selectedIndexList.length;
 
   bool get isSelectionMode => _selectionMode;
@@ -36,9 +37,12 @@ class GalleryPageModel extends ChangeNotifier {
   void changeSelection({required bool enable, required int index}) {
     _selectionMode = enable;
     _selectedIndexList.add(index);
+
     if (index == -1) {
       _selectedIndexList.clear();
     }
+
+    _visibleScrollbar = !enable;
 
     notifyListeners();
   }
@@ -77,9 +81,11 @@ class GalleryPageModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deleteSelected() async {
+  void deleteSelected({
+    bool deleteFromRemote = false,
+  }) async {
     if (_selectedIndexList.isNotEmpty) {
-      await _contentModel!.delete(_selectedIndexList);
+      await _contentModel!.delete(_selectedIndexList, deleteFromRemote: deleteFromRemote);
 
       changeSelection(enable: false, index: -1);
       notifyListeners();

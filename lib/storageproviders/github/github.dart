@@ -273,7 +273,7 @@ class Github extends StorageProvider {
   Future<(BackupStatus, Content?)> backup({
     String? contentId,
     required int totalChunks,
-    required int chunkSeq ,
+    required int chunkSeq,
     String? chunkSeqId,
     required String filename,
     required Uint8List bytes,
@@ -389,9 +389,7 @@ class Github extends StorageProvider {
     List<Future<List<Content>>> contentFutures = [];
 
     for (final repo in _repositories) {
-      contentFutures.add(
-          _getContent(repo)
-      );
+      contentFutures.add(_getContent(repo));
     }
 
     final allContents = await Future.wait(contentFutures);
@@ -466,11 +464,13 @@ class Github extends StorageProvider {
       () async => await http.delete(
         url,
         headers: _getHeaders(),
-        body: jsonEncode(<String, String>{
-          'message': content.name,
-          'branch': 'main',
-          'sha': content.sha
-        }),
+        body: jsonEncode(
+          <String, String>{
+            'message': content.name,
+            'branch': 'main',
+            'sha': content.sha
+          },
+        ),
       ),
     );
 

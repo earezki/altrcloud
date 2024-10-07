@@ -66,6 +66,10 @@ class Content {
 
   String? localPath;
 
+  //TODO
+  //bool deleted;
+  //int deletedAt;
+
   String get key => name;
 
   bool get hasOtherChunks => chunkSeqId != null;

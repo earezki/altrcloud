@@ -128,7 +128,8 @@ class _HomePageState extends State<HomePage> {
               slivers: <Widget>[
                 SliverAppBar(
                   leading: _buildLeadingAppBar(galleryPage),
-                  pinned: store.loadingFile != null,
+                  pinned:
+                      store.loadingFile != null || galleryPage.isSelectionMode,
                   snap: true,
                   floating: true,
                   actions: _appBarActions(galleryPage),
@@ -219,7 +220,14 @@ class _HomePageState extends State<HomePage> {
         }
 
         if (galleryPage.isSelectionMode) {
-          galleryPage.deleteSelected();
+          showConfirmationDialog(
+            context,
+            () => galleryPage.deleteSelected(
+              deleteFromRemote: true,
+            ),
+            message:
+                'This operation is irreversible, are you sure you want to proceed ?',
+          );
         } else if (galleryPage.isSearchMode) {
           galleryPage.search('');
         } else {
@@ -255,7 +263,14 @@ class _HomePageState extends State<HomePage> {
         IconButton(
           icon: const Icon(Icons.delete_outline),
           onPressed: () {
-            showConfirmationDialog(context, () => gallery.deleteSelected());
+            showConfirmationDialog(
+              context,
+              () => gallery.deleteSelected(
+                deleteFromRemote: true,
+              ),
+              message:
+                  'This operation is irreversible, are you sure you want to proceed ?',
+            );
           },
         ),
       );
@@ -319,7 +334,35 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           onTap: () {
-            showConfirmationDialog(context, () => gallery.deleteSelected());
+            showConfirmationDialog(
+              context,
+              () => gallery.deleteSelected(
+                deleteFromRemote: true,
+              ),
+              message:
+                  'This operation is irreversible, are you sure you want to proceed ?',
+            );
+          },
+        ));
+        popupMenus.add(PopupMenuItem<String>(
+          value: 'Delete from device',
+          child: const ListTile(
+            leading: Icon(
+              Icons.phonelink_erase_outlined,
+              color: Colors.red,
+            ),
+            title: Text(
+              'Delete from device',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          onTap: () {
+            showConfirmationDialog(
+              context,
+              () => gallery.deleteSelected(
+                deleteFromRemote: false,
+              ),
+            );
           },
         ));
         popupMenus.add(PopupMenuItem<String>(

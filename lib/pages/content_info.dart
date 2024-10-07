@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:multicloud/pages/state/models.dart';
@@ -112,7 +113,9 @@ class ContentInfo extends StatelessWidget {
     // Model
     // ISOSpeedRatings => ISO[val]
     // ImageWidth x ImageLength
-    print('${await exif.getAttributes()}');
+    if (kDebugMode) {
+      print('${content.path} => ${await exif.getAttributes()}');
+    }
 
     if (latlong == null) {
       return 'Unavailable';
@@ -137,7 +140,9 @@ class ContentInfo extends StatelessWidget {
           return const Text('N/A');
         }
         if (!snapshot.hasData) {
-          return const CircularProgressIndicator();
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
         }
         final T data = snapshot.data!;
         return widget(data);

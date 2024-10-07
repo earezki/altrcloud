@@ -254,11 +254,11 @@ class ContentRepository {
     return criteria.sql();
   }
 
-  Future<void> deleteByName(Content content) async {
+  Future<void> deleteById(Content content) async {
     Database database = await DataSource.instance.database;
 
     await database.rawDelete(
-        "DELETE FROM ${_Tables.CONTENT.name} WHERE name = '${content.name}'");
+        "DELETE FROM ${_Tables.CONTENT.name} WHERE id = '${content.id}'");
   }
 
   Future<Content> update(Content content) async {
