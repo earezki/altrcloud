@@ -10,6 +10,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const widgets = <Widget>[
+      ClientCredentialsConfig(),
       GithubSignIn(),
       UploadOnlyOnWifiConfig(),
       AutoUploadConfig(),

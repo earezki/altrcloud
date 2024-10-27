@@ -554,7 +554,10 @@ class ContentModel extends ChangeNotifier {
 
     final config = await _configRepository.find();
     final localFile = await fileutils.getFileByName(
-        content.name, await config.getDirectories());
+      content.name,
+      await config.getDirectories(),
+    );
+
     if (localFile != null && (await localFile.exists())) {
       content.localPath = localFile.path;
       return await _contentRepository.save(content);

@@ -50,6 +50,7 @@ enum SourceType {
 enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 
 typedef LoadingCallback = void Function(Content content, int uploadedChunks);
+
 class Content {
   final String id;
   final String storageProviderId;
@@ -177,12 +178,17 @@ class Config {
   final List<String> _pictureDirectories;
   int chunkSizeInMB;
 
+  String clientId;
+  String clientSecret;
+
   Config({
     required String id,
     required bool uploadOnlyOnWifi,
     required bool autoUpload,
     required List<String> pictureDirectories,
     required this.chunkSizeInMB,
+    required this.clientId,
+    required this.clientSecret,
   })  : _id = id,
         _uploadOnlyOnWifi = uploadOnlyOnWifi,
         _autoUpload = autoUpload,
@@ -193,7 +199,9 @@ class Config {
         _uploadOnlyOnWifi = true,
         _autoUpload = false,
         _pictureDirectories = [],
-        chunkSizeInMB = _defaultChunkSize;
+        chunkSizeInMB = _defaultChunkSize,
+        clientId = '',
+        clientSecret = '';
 
   Map<String, Object?> toMap() => {
         'id': _id,
@@ -201,6 +209,8 @@ class Config {
         'autoUpload': _autoUpload,
         'pictureDirectories': _pictureDirectories,
         'chunkSizeInMB': chunkSizeInMB,
+        'clientId': clientId,
+        'clientSecret': clientSecret,
       };
 
   Config.fromMap(Map<String, Object?> map)
@@ -209,7 +219,9 @@ class Config {
         _autoUpload = (map['autoUpload'] ?? false) as bool,
         chunkSizeInMB = (map['chunkSizeInMB'] ?? _defaultChunkSize) as int,
         _pictureDirectories =
-            (map['pictureDirectories'] as List<dynamic>).cast<String>();
+            (map['pictureDirectories'] as List<dynamic>).cast<String>(),
+        clientId = (map['clientId'] ?? '') as String,
+        clientSecret = (map['clientSecret'] ?? '') as String;
 
   String get id => _id;
 
@@ -221,6 +233,8 @@ class Config {
   bool get isAutoUploadEnabled => _autoUpload;
 
   bool get uploadOnlyOnWifi => _uploadOnlyOnWifi;
+
+  bool get hasCredentials => clientId.isNotEmpty && clientSecret.isNotEmpty;
 
   Future<bool> isUploadEnabled() async {
     if (!_uploadOnlyOnWifi) {

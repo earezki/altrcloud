@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+typedef TextPredicate = bool Function(String txt);
+
 Widget getUsedSizeWidget(int sizeInBytes) {
   return Text(getUsedSizeString(sizeInBytes));
 }
@@ -42,10 +44,57 @@ void showConfirmationDialog(BuildContext context, VoidCallback onPressed,
           ),
           TextButton(
             onPressed: () {
-              onPressed();
               Navigator.of(context).pop();
+              onPressed();
             },
             child: const Text('Confirm'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+Future<void> displayTextInputDialog(
+  BuildContext context,
+  TextEditingController controller, {
+  required String title,
+  required String error,
+  required TextPredicate isValid,
+  required VoidCallback onUpdate,
+  String? hint,
+}) async {
+  return showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: <Widget>[
+          TextButton.icon(
+            label: const Text('CANCEL'),
+            onPressed: () {
+              controller.text = '';
+              Navigator.pop(context);
+            },
+          ),
+          TextButton.icon(
+            label: const Text('OK'),
+            onPressed: () async {
+              if (isValid(controller.text)) {
+                onUpdate();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error),
+                  ),
+                );
+              }
+              Navigator.pop(context);
+            },
           ),
         ],
       );

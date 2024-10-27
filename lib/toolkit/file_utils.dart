@@ -1,24 +1,38 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 
 const trashFilePredix = '.trashed';
 
 Future<File?> getFileByName(
     String requiredFilename, List<String> directories) async {
-  for (final directory in directories) {
-    await for (final file
-        in Directory(directory).list(recursive: true, followLinks: false)) {
-      if (file is! File) {
-        continue;
-      }
+  final futures = directories
+      .map((dir) => _getFileByNameFromDir(requiredFilename, dir))
+      .toList(growable: false);
 
-      final filename = basename(file.path);
+  final files = await Future.wait(futures);
 
-      if (filename == requiredFilename) {
-        return file;
-      }
+  return files.where((f) => f != null).firstOrNull;
+}
+
+Future<File?> _getFileByNameFromDir(
+    String requiredFilename, String directory) async {
+  if (kDebugMode) {
+    print(
+        '_getFileByNameFromDir => searching for [$requiredFilename] in [$directory]');
+  }
+  await for (final file
+      in Directory(directory).list(recursive: true, followLinks: false)) {
+    if (file is! File) {
+      continue;
+    }
+
+    final filename = basename(file.path);
+
+    if (filename == requiredFilename) {
+      return file;
     }
   }
 
@@ -96,23 +110,36 @@ bool isTrash(String filename) {
   return filename.startsWith(trashFilePredix);
 }
 
+const platform = MethodChannel('file_manager');
+
 Future<void> recycle(String path) async {
   final file = File(path);
   final exists = await file.exists();
 
   if (exists) {
     if (kDebugMode) {
-      print('recycle => deleting [$path] ...');
+      print('recycle => recycling [$path] ...');
     }
 
-    //final filename = basename(path);
-    //final dir = dirname(path);
+    if (kDebugMode) {
+      print("Recycling is disabled !");
+    }
 
-    //if (isTrash(filename)) {
-    await file.delete();
-    // }
-    //else {
-    //  await file.rename('$dir/$trashFilePredix-$filename');
-    //}
+    /*try {
+      await platform.invokeMethod('moveToTrash', {'filePath': path});
+    } on PlatformException catch (e) {
+      if (kDebugMode) {
+        print("Failed to recycle file: ${e.message}");
+      }
+    }*/
+
+    /*final filename = basename(path);
+    final dir = dirname(path);
+
+    if (isTrash(filename)) {
+      await file.delete();
+    } else {
+      await file.rename('$dir/$trashFilePredix-$filename');
+    }*/
   }
 }

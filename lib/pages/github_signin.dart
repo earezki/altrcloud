@@ -4,14 +4,11 @@ import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/pages/widgets/bouncing_dots.dart';
-import 'package:multicloud/pages/widgets/widgets.dart';
+import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/storageproviders/github/github.dart';
 import 'package:provider/provider.dart';
 
 class GithubSignIn extends StatelessWidget {
-  static const String _clientId = 'Ov23liYRYQKHDr7iaWvJ';
-  static const String _clientSecret =
-      '015799f12d3999f97a120287480c35b5ad7b680d';
   static const String _redirectUrl = 'altrcloud://callback';
   static const String _authorizeUrl =
       'https://github.com/login/oauth/authorize';
@@ -30,13 +27,25 @@ class GithubSignIn extends StatelessWidget {
       return;
     }
 
+    final configRepository = ConfigRepository();
+    final config = await configRepository.find();
+    if (!config.hasCredentials) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add the client credentials first !'),
+        ),
+      );
+
+      return;
+    }
+
     try {
       final AuthorizationTokenResponse? result =
           await _appAuth.authorizeAndExchangeCode(
         AuthorizationTokenRequest(
-          _clientId,
+          config.clientId,
           _redirectUrl,
-          clientSecret: _clientSecret,
+          clientSecret: config.clientSecret,
           serviceConfiguration: const AuthorizationServiceConfiguration(
             authorizationEndpoint: _authorizeUrl,
             tokenEndpoint: _tokenUrl,

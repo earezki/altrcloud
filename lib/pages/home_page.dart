@@ -51,6 +51,7 @@ class _HomePageState extends State<HomePage> {
 
   _asyncInit() async {
     Map<Permission, PermissionStatus> statuses = await [
+      Permission.storage,
       Permission.manageExternalStorage,
       Permission.audio,
       Permission.videos,
@@ -226,7 +227,7 @@ class _HomePageState extends State<HomePage> {
               deleteFromRemote: true,
             ),
             message:
-                'This operation is irreversible, are you sure you want to proceed ?',
+                'We do not delete the file in the device storage, only from the remote storage',
           );
         } else if (galleryPage.isSearchMode) {
           galleryPage.search('');
@@ -269,7 +270,7 @@ class _HomePageState extends State<HomePage> {
                 deleteFromRemote: true,
               ),
               message:
-                  'This operation is irreversible, are you sure you want to proceed ?',
+                  'We do not delete the file in the device storage, only from the remote storage',
             );
           },
         ),
@@ -340,28 +341,7 @@ class _HomePageState extends State<HomePage> {
                 deleteFromRemote: true,
               ),
               message:
-                  'This operation is irreversible, are you sure you want to proceed ?',
-            );
-          },
-        ));
-        popupMenus.add(PopupMenuItem<String>(
-          value: 'Delete from device',
-          child: const ListTile(
-            leading: Icon(
-              Icons.phonelink_erase_outlined,
-              color: Colors.red,
-            ),
-            title: Text(
-              'Delete from device',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-          onTap: () {
-            showConfirmationDialog(
-              context,
-              () => gallery.deleteSelected(
-                deleteFromRemote: false,
-              ),
+                  'We do not delete the file in the device storage, only from the remote storage',
             );
           },
         ));

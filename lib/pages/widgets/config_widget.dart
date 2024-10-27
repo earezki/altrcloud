@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/data_source.dart';
@@ -130,54 +131,12 @@ class _ChunkSizeInMBConfig extends State<ChunkSizeInMBConfig> {
         ),
       ),
       onTap: () async {
-        await _displayTextInputDialog(context);
-      },
-    );
-  }
-
-  Future<void> _displayTextInputDialog(BuildContext context) async {
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Video chunk size'),
-          content: TextField(
-            controller: _textFieldController,
-            decoration: const InputDecoration(hintText: "10"),
-          ),
-          actions: <Widget>[
-            TextButton.icon(
-              label: const Text('CANCEL'),
-              icon: const Icon(
-                Icons.cancel_outlined,
-                color: Colors.red,
-              ),
-              onPressed: () {
-                _textFieldController.text = '';
-                Navigator.pop(context);
-              },
-            ),
-            TextButton.icon(
-              label: const Text('OK'),
-              icon: const Icon(
-                Icons.check_box_outlined,
-                color: Colors.green,
-              ),
-              onPressed: () async {
-                if (isInt(_textFieldController.text)) {
-                  await _updateChunkSizeInMB();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Video chunk size should be an integer !'),
-                    ),
-                  );
-                }
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        );
+        await displayTextInputDialog(context, _textFieldController,
+            title: 'Video chunk size',
+            error: 'Video chunk size should be an integer !',
+            hint: '10',
+            isValid: isInt,
+            onUpdate: () async => await _updateChunkSizeInMB());
       },
     );
   }
@@ -190,7 +149,6 @@ class _ChunkSizeInMBConfig extends State<ChunkSizeInMBConfig> {
       // redraw
     });
   }
-
 }
 
 Widget _getUsedSize(AsyncSnapshot<Config> snapshot) {
@@ -202,4 +160,91 @@ Widget _getUsedSize(AsyncSnapshot<Config> snapshot) {
   }
   final chunkSize = snapshot.data!.chunkSizeInMB;
   return Text('$chunkSize MB');
+}
+
+class ClientCredentialsConfig extends StatefulWidget {
+  const ClientCredentialsConfig({super.key});
+
+  @override
+  State<ClientCredentialsConfig> createState() => _ClientCredentialsConfig();
+}
+
+class _ClientCredentialsConfig extends State<ClientCredentialsConfig> {
+  final ConfigRepository _repository = ConfigRepository();
+  final TextEditingController _clientIdTextFieldController =
+      TextEditingController();
+  final TextEditingController _clientSecretTextFieldController =
+      TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      child: const Card(
+        child: ListTile(
+          title: Text('Client credentials'),
+          leading: Icon(Icons.account_circle_outlined),
+          trailing: Icon(Icons.settings_outlined),
+        ),
+      ),
+      onTap: () async {
+        final config = await _repository.find();
+        if (config.hasCredentials) {
+          showConfirmationDialog(
+            context,
+            () async => await _showClientIdDialog(context),
+            message:
+                'Are you sure you want to override the client credentials ?',
+          );
+        } else {
+          await _showClientIdDialog(context);
+        }
+      },
+    );
+  }
+
+  Future<void> _showClientIdDialog(BuildContext context) async {
+    await displayTextInputDialog(
+      context,
+      _clientIdTextFieldController,
+      title: 'Client id',
+      error: 'Client id must not be empty !',
+      isValid: (txt) => txt.isNotEmpty,
+      onUpdate: () {},
+    );
+
+    if (_clientIdTextFieldController.text.isNotEmpty) {
+      await _showClientSecretDialog();
+    }
+  }
+
+  Future<void> _showClientSecretDialog() async {
+    await displayTextInputDialog(
+      context,
+      _clientSecretTextFieldController,
+      title: 'Client secret',
+      error: 'Client secret must not be empty !',
+      isValid: (txt) => txt.isNotEmpty,
+      onUpdate: () async => await _updateClientCredentials(),
+    );
+  }
+
+  Future<void> _updateClientCredentials() async {
+    final config = await _repository.find();
+    if (_clientIdTextFieldController.text.isEmpty ||
+        _clientSecretTextFieldController.text.isEmpty) {
+      return;
+    }
+
+    config.clientId = _clientIdTextFieldController.text;
+    config.clientSecret = _clientSecretTextFieldController.text;
+
+    if (kDebugMode) {
+      print('Client credentials updated: [${config.clientId} | ${config.clientSecret}]');
+    }
+
+    await _repository.save(config);
+    setState(() {
+      // redraw
+    });
+  }
 }
