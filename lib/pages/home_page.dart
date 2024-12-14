@@ -135,6 +135,7 @@ class _HomePageState extends State<HomePage> {
                   floating: true,
                   actions: _appBarActions(galleryPage),
                   flexibleSpace: FlexibleSpaceBar(
+                    titlePadding: const EdgeInsets.all(16),
                     title: _buildAppBarTitle(galleryPage),
                     background: Container(
                       color: Theme.of(context).colorScheme.inversePrimary,
@@ -201,10 +202,16 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildAppBarTitle(GalleryPageModel gallery) {
     if (gallery.isSelectionMode) {
-      return Text('${gallery.selectionCount}');
+      return Row(
+        children: [
+          const SizedBox(width: 30),
+          Text('${gallery.selectionCount}'),
+        ],
+      );
     }
 
     final title = _titles[_selectedTabIndex];
+
     return Text(title);
   }
 
@@ -396,16 +403,19 @@ class _HomePageState extends State<HomePage> {
         },
       ));
 
-      debugActions.add(PopupMenuItem<String>(
-        value: 'Clear thumbnails',
-        child: const ListTile(
-          leading: Icon(Icons.delete_outline),
-          title: Text('Clear thumbnails'),
+      debugActions.add(
+        PopupMenuItem<String>(
+          value: 'Clear thumbnails',
+          child: const ListTile(
+            leading: Icon(Icons.delete_outline),
+            title: Text('Clear thumbnails'),
+          ),
+          onTap: () {
+            context.read<ContentModel>().clearThumbnails();
+          },
         ),
-        onTap: () {
-          context.read<ContentModel>().clearThumbnails();
-        },
-      ));
+      );
+
       debugActions.add(const PopupMenuDivider());
     }
 

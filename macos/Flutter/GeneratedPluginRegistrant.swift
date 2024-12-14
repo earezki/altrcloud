@@ -6,14 +6,14 @@ import FlutterMacOS
 import Foundation
 
 import connectivity_plus
-import cryptography_flutter
+import cryptography_flutter_plus
 import file_selector_macos
 import flutter_appauth
 import flutter_image_compress_macos
 import package_info_plus
 import path_provider_foundation
 import share_plus
-import sqflite
+import sqflite_darwin
 import url_launcher_macos
 import wakelock_plus
 

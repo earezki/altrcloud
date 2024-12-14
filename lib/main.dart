@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:multicloud/features.dart';
 import 'package:multicloud/pages/home_page.dart';
 import 'package:multicloud/pages/state/config.dart';
 import 'package:multicloud/pages/state/models.dart';
@@ -46,6 +47,8 @@ class MultiCloudManagerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    initFeatures();
+
     return MaterialApp(
       title: 'AltrCloud',
       theme: ThemeData(

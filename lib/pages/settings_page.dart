@@ -1,30 +1,47 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:multicloud/features.dart';
 import 'package:multicloud/pages/github_signin.dart';
 import 'package:multicloud/pages/widgets/config_widget.dart';
 import 'package:multicloud/pages/widgets/used_space.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
   @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  @override
   Widget build(BuildContext context) {
-    const widgets = <Widget>[
-      ClientCredentialsConfig(),
-      GithubSignIn(),
-      UploadOnlyOnWifiConfig(),
-      AutoUploadConfig(),
-      ChunkSizeInMBConfig(),
-      TotalLocalFiles(),
-      TotalPrimaryFiles(),
-      TotalChunkFiles(),
-      TotalLocalFilesSize(),
-      UsedCloudSpace(),
-      UsedCacheSpace(),
-      UsedThumbnailSpace(),
-      UsedDatabaseSpace(),
-      HeapUsage(),
-    ];
+    List<Widget> widgets = [];
+
+    widgets.addAll([
+      const ClientCredentialsConfig(),
+      const GithubSignIn(),
+      const UploadOnlyOnWifiConfig(),
+      const TotalLocalFiles(),
+      const TotalPrimaryFiles(),
+      const TotalChunkFiles(),
+      const TotalLocalFilesSize(),
+      const UsedCloudSpace(),
+    ]);
+
+    if (features.contains(Feature.AUTO_UPLOAD)) {
+      widgets.add(const AutoUploadConfig());
+    }
+    if (features.contains(Feature.EDIT_CHUNK_SIZE)) {
+      widgets.add(const ChunkSizeInMBConfig());
+    }
+    if (kDebugMode) {
+      widgets.addAll([
+        const UsedCacheSpace(),
+        const UsedThumbnailSpace(),
+        const UsedDatabaseSpace(),
+        const HeapUsage(),
+      ]);
+    }
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(

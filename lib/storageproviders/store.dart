@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:collection';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/pages/state/config.dart';
 import 'package:multicloud/pages/state/models.dart';
@@ -9,7 +10,6 @@ import 'package:multicloud/storageproviders/loading_file.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_type.dart';
 import 'package:multicloud/toolkit/file_utils.dart';
-import 'package:multicloud/toolkit/list_utils.dart';
 import 'package:multicloud/toolkit/thumbnails.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
@@ -122,6 +122,50 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _uploadPendingThumbnails(StorageProvider provider) async {
+    final remoteContents = await _getRemoteContent();
+    final List<String> filesToUpload = [];
+    var totalSize = 0;
+
+    for (final rc in remoteContents) {
+      if (!rc.isThumbnail && rc.isPrimaryChunk) {
+        final thumbnailNotUploaded = remoteContents.indexWhere(
+              (r) => r.isThumbnail && r.idFromThumbnail == rc.id,
+            ) ==
+            -1;
+
+        if (thumbnailNotUploaded) {
+          final filePath = getThumbnailFile(rc);
+          final file = File(filePath);
+          if (await file.exists()) {
+            filesToUpload.add(filePath);
+            totalSize += (await file.length());
+          }
+        }
+      }
+    }
+
+    if (kDebugMode) {
+      print('_uploadPendingThumbnails: pending = ${filesToUpload.length}');
+    }
+
+    for (var i = 0; i < filesToUpload.length; i++) {
+      final file = filesToUpload[i];
+
+      _setLoadingFile(
+        filename: 'thumbnails',
+        size: totalSize,
+        totalChunks: filesToUpload.length,
+        uploadedChunks: i,
+      );
+
+      await _uploadThumbnail(
+        provider: provider,
+        file: File(file),
+      );
+    }
+  }
+
   Future<void> backup() async {
     if (_isUploadInProgress || _contentModel!.isLoading) {
       return;
@@ -147,11 +191,14 @@ class Store extends ChangeNotifier {
     contentModel.startLoading();
 
     _isUploadInProgress = true;
+
+    // we only have one provider (Github) currently.
+    final provider = providers[SupportedBackupType.PICTURES]!;
+
+    await _uploadPendingThumbnails(provider);
+
     try {
       for (String pictureDir in pictureDirectories) {
-        // we only have one provider (Github) currently.
-        final provider = providers[SupportedBackupType.PICTURES]!;
-
         try {
           await _upload(
             pictureDir,
@@ -182,70 +229,96 @@ class Store extends ChangeNotifier {
         continue;
       }
 
-      final originalFilename = basename(fileToUpload.path);
-      if (isTrash(originalFilename) ||
-          (contentModel.hasFilename(originalFilename) &&
-              !(await contentModel
-                  .hasPendingChunksForUpload(originalFilename)))) {
-        continue;
-      }
-
-      final file = File(fileToUpload.path);
-      final lastModified = await file.lastModified();
-
-      final fileType = getFileType(fileToUpload.path);
-      if (fileType == FileType.PICTURE) {
-        final originalBytes = await file.readAsBytes();
-
-        final originalContent = await _backupFile(
-          provider: provider,
-          filename: originalFilename,
-          fileBytes: originalBytes,
-          lastModified: lastModified,
-        );
-
-        if (originalContent != null) {
-          originalContent.localPath = fileToUpload.path;
-
-          _setLoadingFile(
-            filename: originalFilename,
-            size: await file.length(),
-            totalChunks: 1,
-            uploadedChunks: 0,
-          );
-
-          await createThumbnail(
-            content: originalContent,
-            originalPath: fileToUpload.path,
-          );
-
-          contentModel.save(originalContent);
+      try {
+        final originalFilename = basename(fileToUpload.path);
+        if (isTrash(originalFilename) ||
+            (contentModel.hasFilename(originalFilename) &&
+                !(await contentModel
+                    .hasPendingChunksForUpload(originalFilename)))) {
+          continue;
         }
-      } else if (fileType == FileType.VIDEO) {
-        final videoContent = await _uploadVideo(
-          provider: provider,
-          video: file,
-          lastModified: lastModified,
-        );
 
-        videoContent.localPath = fileToUpload.path;
+        final file = File(fileToUpload.path);
+        final lastModified = await file.lastModified();
 
-        await createThumbnail(
-          content: videoContent.primaryChunk,
-          originalPath: fileToUpload.path,
-          rebuild: true,
-        );
+        final fileType = getFileType(fileToUpload.path);
+        if (fileType == FileType.PICTURE) {
+          final originalBytes = await file.readAsBytes();
 
-        contentModel.saveChunked(videoContent);
-      }
+          final originalContent = await _backupFile(
+            provider: provider,
+            filename: originalFilename,
+            fileBytes: originalBytes,
+            lastModified: lastModified,
+          );
 
-      // redraw after creating the thumbnails.
-      contentModel.notifyListeners();
+          if (originalContent != null) {
+            originalContent.localPath = fileToUpload.path;
 
-      if (kDebugMode) {
-        print('Store => Done backup of [${fileToUpload.path}]');
+            _setLoadingFile(
+              filename: originalFilename,
+              size: await file.length(),
+              totalChunks: 1,
+              uploadedChunks: 0,
+            );
+
+            final thumbnailFile = await createThumbnail(
+              content: originalContent,
+              originalPath: fileToUpload.path,
+            );
+
+            await _uploadThumbnail(provider: provider, file: thumbnailFile);
+
+            contentModel.save(originalContent);
+          }
+        } else if (fileType == FileType.VIDEO) {
+          final videoContent = await _uploadVideo(
+            provider: provider,
+            video: file,
+            lastModified: lastModified,
+          );
+
+          videoContent.localPath = fileToUpload.path;
+
+          final thumbnailFile = await createThumbnail(
+            content: videoContent.primaryChunk,
+            originalPath: fileToUpload.path,
+            rebuild: true,
+          );
+
+          await _uploadThumbnail(provider: provider, file: thumbnailFile);
+
+          contentModel.saveChunked(videoContent);
+        }
+
+        // redraw after creating the thumbnails.
+        contentModel.notifyListeners();
+
+        if (kDebugMode) {
+          print('Store => Done backup of [${fileToUpload.path}]');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('Upload failed: $e');
+        }
       }
     }
+  }
+
+  Future<void> _uploadThumbnail({
+    required StorageProvider provider,
+    File? file,
+  }) async {
+    if (file == null) {
+      return;
+    }
+
+    final name = '${Content.thumbnailPrefix}${basename(file.path)}';
+    await provider.upload(
+      name: name,
+      filename: name,
+      bytes: await file.readAsBytes(),
+    );
   }
 
   Future<ChunkedContent> _uploadVideo(
@@ -390,14 +463,71 @@ class Store extends ChangeNotifier {
     _isUploadInProgress = true;
 
     try {
-      final remoteContent = await _getRemoteContent();
+      //filter and keep only thumbnails that will be stored to the thumbnails folder.
+      //content will be loaded when the user clicks on it.
+      final remoteContents = await _getMissingRemoteContent();
 
-      if (remoteContent.isNotEmpty) {
+      // count the thumbnails
+      var contentCount = 0;
+      var totalSize = 0;
+      for (var rc in remoteContents) {
+        if (!rc.isThumbnail) {
+          continue;
+        }
+        contentCount++;
+        totalSize += rc.size;
+      }
+
+      for (var i = 0; i < remoteContents.length; i++) {
+        final rc = remoteContents[i];
+        if (!rc.isThumbnail) {
+          continue;
+        }
+
+        try {
+          // skip already loaded thumbnails
+          final contentId = rc.idFromThumbnail;
+          final thumbnailFile = File(getThumbnailFileFromId(contentId));
+          if (await thumbnailFile.exists()) {
+            continue;
+          }
+
+          _setLoadingFile(
+            filename: "sync",
+            size: totalSize,
+            totalChunks: contentCount,
+            uploadedChunks: i,
+          );
+
+          final provider = contentModel.getProviderOfContent(rc);
+          // TODO: loading callback to print progress for all thumbnails (x/total)
+          final result = await provider.loadData(rc);
+          await thumbnailFile.writeAsBytes(result.$2);
+
+          // store the associated content so it can be shown.
+          final contentIdx = remoteContents
+              .indexWhere((c) => c.isPrimaryChunk && c.id == contentId);
+
+          if (contentIdx != -1) {
+            final content = remoteContents[contentIdx];
+            await _contentRepository.save(content);
+            contentModel.add(content);
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('Sync failed $e');
+          }
+        }
+      }
+
+      /*
+      final missingContent = await _getMissingRemoteContent();
+      if (missingContent.isNotEmpty) {
         // save all first to have all the chunks available for videos.
         //  await _contentRepository.saveAll(remoteContent);
 
         // create thumbnails.
-        for (var rc in remoteContent) {
+        for (var rc in missingContent) {
           if (rc.isNotPrimaryChunk) {
             continue;
           }
@@ -411,11 +541,11 @@ class Store extends ChangeNotifier {
           //  final localFile = await getFileByName(rc.name, directories);
           //  rc.localPath = localFile?.path;
 
-          List<Content> allChunks = contentModel.getChunksOf(remoteContent, rc);
+          List<Content> allChunks = contentModel.getChunksOf(missingContent, rc);
           final totalSize = sum(allChunks.map((c) => c.size));
           rc = await contentModel.loadData(
             rc,
-            chunksContents: remoteContent,
+            chunksContents: missingContent,
             loadingCallback: (content, uploadedChunks) => _setLoadingFile(
               filename: content.name,
               size: totalSize,
@@ -424,8 +554,7 @@ class Store extends ChangeNotifier {
             ),
           );
 
-          await _contentRepository
-              .saveAll(allChunks);
+          await _contentRepository.saveAll(allChunks);
 
           try {
             await createThumbnail(
@@ -444,7 +573,7 @@ class Store extends ChangeNotifier {
             // _deleteChunks(rc);
           }
         }
-      }
+      }*/
     } finally {
       _reinit();
       contentModel.finishLoading();
@@ -453,6 +582,22 @@ class Store extends ChangeNotifier {
 
   Future<List<Content>> _getRemoteContent() async {
     var remoteContent = await storageProviderModel.fetchContent();
+    remoteContent.sort(
+      (a, b) {
+        final comp =
+            b.createdAtMillisSinceEpoch.compareTo(a.createdAtMillisSinceEpoch);
+        if (comp != 0) {
+          return comp;
+        }
+        return a.chunkSeq.compareTo(b.chunkSeq);
+      },
+    );
+
+    return remoteContent;
+  }
+
+  Future<List<Content>> _getMissingRemoteContent() async {
+    var remoteContent = await _getRemoteContent();
 
     // remove duplicated content by filename and chunkSeq.
     // remoteContent.unique((rc) => '${rc.name}-${rc.chunkSeq}');

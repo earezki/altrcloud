@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:multicloud/features.dart';
 import 'package:multicloud/pages/content_info.dart';
 import 'package:multicloud/pages/easy_image_view.dart';
 import 'package:multicloud/pages/edit_photo_screen.dart';
@@ -116,28 +117,30 @@ class _PhotoCarouselScreenState extends State<PhotoCarouselScreen> {
     List<PopupMenuItem<String>> menus = [];
 
     if (_selected!.fileType == FileType.PICTURE) {
-      menus.add(
-        PopupMenuItem<String>(
-          value: 'Edit',
-          child: const ListTile(
-            leading: Icon(Icons.edit_outlined),
-            title: Text('Edit'),
+      if (features.contains(Feature.PHOTO_EDIT)) {
+        menus.add(
+          PopupMenuItem<String>(
+            value: 'Edit',
+            child: const ListTile(
+              leading: Icon(Icons.edit_outlined),
+              title: Text('Edit'),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) {
+                    return EditPhotoScreen(
+                      content: _selected!,
+                    );
+                  },
+                ),
+              );
+            },
           ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                fullscreenDialog: true,
-                builder: (_) {
-                  return EditPhotoScreen(
-                    content: _selected!,
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      );
+        );
+      }
     }
     return [
       PopupMenuItem<String>(

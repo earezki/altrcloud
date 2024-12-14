@@ -74,7 +74,7 @@ Future<int> getDirectorySize(String directory) async {
 
 Future<void> clearDirectory(String directory) async {
   await for (var f
-      in Directory(directory).list(recursive: false, followLinks: false)) {
+      in Directory(directory).list(recursive: true, followLinks: false)) {
     if (f is! File) {
       continue;
     }
@@ -82,7 +82,7 @@ Future<void> clearDirectory(String directory) async {
     await f.delete();
 
     if (kDebugMode) {
-      print('clearDirectory => file [${f.path}] deleted !');
+      print('clearDirectory => file [${f.path}] deleted!');
     }
   }
 }

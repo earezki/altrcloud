@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:external_path/external_path.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:multicloud/toolkit/connectivity.dart' as connectivity;
 import 'package:multicloud/toolkit/file_type.dart' as ft;
 import 'package:uuid/uuid.dart';
@@ -20,6 +21,12 @@ abstract class StorageProvider {
   Future<void> initState();
 
   Future<(Content, List<int>)> loadData(Content content);
+
+  Future<http.Response> upload({
+    required String name,
+    required String filename,
+    required Uint8List bytes,
+  });
 
   Future<(BackupStatus, Content?)> backup(
       {String? contentId,
@@ -52,6 +59,10 @@ enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 typedef LoadingCallback = void Function(Content content, int uploadedChunks);
 
 class Content {
+  static const thumbnail = 'thumbnail';
+  static const delimiter = '|';
+  static const thumbnailPrefix = 'thumbnail|';
+
   final String id;
   final String storageProviderId;
 
@@ -132,6 +143,15 @@ class Content {
         chunkSeq = map['chunkSeq'] as int,
         chunkSeqId = map['chunkSeqId'] as String?,
         localPath = map['localPath'] as String?;
+
+  bool get isThumbnail => name.startsWith(thumbnailPrefix);
+  String get idFromThumbnail {
+    if (!isThumbnail) {
+      throw 'can only call for thumbnails';
+    }
+
+    return name.split(delimiter)[1];
+  }
 }
 
 class ChunkedContent {

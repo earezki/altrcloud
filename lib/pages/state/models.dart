@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:multicloud/features.dart';
 import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/cache.dart' as cache;
@@ -110,12 +111,11 @@ class ContentModel extends ChangeNotifier {
     startLoading();
 
     final contents = await _contentsOfRepo();
-    // show some temporary contents waiting for the ne
+    // show some temporary contents while waiting ...
     replace(contents);
 
     await contents.removeWhereAsync((c) async {
-      final notSupportedExt =
-          ![FileType.PICTURE, FileType.VIDEO].contains(c.fileType);
+      final notSupportedExt = !supportedExtensions.contains(c.fileType);
       return (!c.isPrimaryChunk) ||
           (notSupportedExt) ||
           (c.hasOtherChunks && (hasPendingChunks(contents, c.name)));
@@ -152,7 +152,10 @@ class ContentModel extends ChangeNotifier {
 
     startLoading();
     try {
-      final remoteContents = await storageProviderModel.fetchContent();
+      final remoteContents = (await storageProviderModel.fetchContent())
+          .where((rc) => !rc.isThumbnail)
+          .toList();
+
       Map<String, List<Content>> contentsByFilename = {};
       // group by 'name | chunkSeq'
       for (final content in _getDuplicates(remoteContents)) {
@@ -407,7 +410,7 @@ class ContentModel extends ChangeNotifier {
 
     final contentsToDelete = indices.map((index) => _contents[index]).toList();
 
-    for (var content in contentsToDelete) {
+    for (final content in contentsToDelete) {
       try {
         /**
          * TODO, not delete but add a flag to say it's in the trash !
@@ -471,7 +474,7 @@ class ContentModel extends ChangeNotifier {
   }
 
   Future<void> _deleteContent(Content content) async {
-    StorageProvider provider = _getProviderOfContent(content);
+    StorageProvider provider = getProviderOfContent(content);
     try {
       await provider.delete(content);
       await _contentRepository.deleteById(content);
@@ -489,7 +492,7 @@ class ContentModel extends ChangeNotifier {
     }
   }
 
-  StorageProvider _getProviderOfContent(Content content) {
+  StorageProvider getProviderOfContent(Content content) {
     // TODO when reconnecting, Github instance gets a new id, hence the one in content is useless,
     // TODO FIX: when connecting a new Github, reuse the existing id.
     // final provider = storageProviderModel.providers
@@ -581,7 +584,7 @@ class ContentModel extends ChangeNotifier {
             'ContentModel._loadData => cache miss for [${content.fileType}] - [${content.name}]');
       }
 
-      StorageProvider provider = _getProviderOfContent(content);
+      StorageProvider provider = getProviderOfContent(content);
 
       if (content.fileType == FileType.PICTURE) {
         if (loadingCallback != null) {
@@ -686,7 +689,15 @@ class StorageProviderModel extends ChangeNotifier {
   bool get hasNoProviders => _providers.isEmpty;
 
   Future<void> initState() async {
-    var providers = await _repository.findAll();
+    if (kDebugMode) {
+      print('StorageProviderModel.initState() ...');
+    }
+
+    final providers = await _repository.findAll();
+    for (final p in providers) {
+      await p.initState();
+    }
+
     replace(providers);
   }
 

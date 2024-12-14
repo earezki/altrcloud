@@ -82,7 +82,7 @@ class GalleryPageModel extends ChangeNotifier {
   }
 
   void deleteSelected({
-    bool deleteFromRemote = false,
+    bool deleteFromRemote = true,
   }) async {
     if (_selectedIndexList.isNotEmpty) {
       await _contentModel!.delete(_selectedIndexList, deleteFromRemote: deleteFromRemote);

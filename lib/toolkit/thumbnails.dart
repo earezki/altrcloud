@@ -56,8 +56,11 @@ bool isThumbnail(String filename) {
 
 String getThumbnailFile(Content content) {
   final fileId = content.id;
-  final thumbnailFile = '$thumbnailsDirectory/$fileId';
-  return thumbnailFile;
+  return getThumbnailFileFromId(fileId);
+}
+
+String getThumbnailFileFromId(String fileId) {
+  return '$thumbnailsDirectory/$fileId';
 }
 
 Future<File?> createThumbnail({

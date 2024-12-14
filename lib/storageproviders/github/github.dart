@@ -7,7 +7,6 @@ import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:retry/retry.dart';
 
 import 'dart:developer';
-import 'dart:math' as math;
 
 import 'package:uuid/uuid.dart';
 
@@ -18,7 +17,6 @@ class Github extends StorageProvider {
   static const List<int> _successCodes = [200, 201, 204];
   static const _encodingNameDelimiter = '@';
   static const _readMe = 'README.md';
-  static const _maxRepos = 5;
 
   final String _accessToken;
   final DateTime _accessTokenExpiryDate;
@@ -99,13 +97,22 @@ class Github extends StorageProvider {
 
   @override
   Future<void> initState() async {
+    if (kDebugMode) {
+      print('Github.initState()...');
+    }
+
     _orgName ??= await _lookupCompatibleOrgNameOrFail();
 
-    _repositories = await _getOrCreateRepositories();
+    await _reloadRepos();
+
     _user = await _getUser();
     _encryption = Encryption(secret: _user.secret);
 
     return;
+  }
+
+  Future<void> _reloadRepos() async {
+    _repositories = await _getOrCreateRepositories();
   }
 
   Future<String> _lookupCompatibleOrgNameOrFail() async {
@@ -134,24 +141,24 @@ class Github extends StorageProvider {
   }
 
   Future<List<_Repository>> _getOrCreateRepositories() async {
-    var repositories = await _getManagedRepositories();
+    final repositories = await _getManagedRepositories();
     if (repositories.isNotEmpty) {
+      if (kDebugMode) {
+        print('Github._getOrCreateRepositories: fetch ${repositories.length} repositories');
+      }
       return repositories;
     }
 
-    repositories = [];
-    for (var repoIdx = 0; repoIdx < _maxRepos; repoIdx++) {
-      var newRepository = await _createNewRepository(repoIdx);
-      repositories.add(newRepository);
+    if (kDebugMode) {
+      print('Github._getOrCreateRepositories: no existing repos, creating a new one.');
     }
-
-    return repositories;
+    return [await _createNewRepository(repositories.length)];
   }
 
   Future<_Repository> _createNewRepository(int repoIdx) async {
-    var url = Uri.parse('$_baseApi/orgs/$_orgName/repos');
+    final url = Uri.parse('$_baseApi/orgs/$_orgName/repos');
 
-    var response = await http.post(
+    final response = await http.post(
       url,
       body: jsonEncode({
         'name': '$_managedRepoPrefix$repoIdx',
@@ -179,8 +186,8 @@ class Github extends StorageProvider {
   }
 
   Future<List<_Repository>> _getManagedRepositories() async {
-    var url = Uri.parse('$_baseApi/orgs/$_orgName/repos?type=private');
-    var response = await http.get(url, headers: _getHeaders());
+    final url = Uri.parse('$_baseApi/orgs/$_orgName/repos?type=private');
+    final response = await http.get(url, headers: _getHeaders());
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -193,9 +200,39 @@ class Github extends StorageProvider {
         .toList();
   }
 
-  _Repository _getAvailableRepository() {
-    final random = math.Random();
-    final repoIdx = random.nextInt(_repositories.length);
+  static const int _repoContentThreshold = 800;
+
+  Future<_Repository> _getAvailableRepository() async {
+    final lastRepo = _getLastRepo();
+
+    if (lastRepo.contentCountNotAssigned) {
+      lastRepo._contentCount = (await _getContentJson(lastRepo)).length;
+      if (kDebugMode) {
+        print(
+          '_getAvailableRepository set size: ${lastRepo._name}|${lastRepo._contentCount}',
+        );
+      }
+    }
+
+    if (lastRepo._contentCount > _repoContentThreshold) {
+      if (kDebugMode) {
+        print(
+          '${lastRepo._name} size exceeded the threshold (${lastRepo._contentCount}/$_repoContentThreshold)',
+        );
+      }
+      final newRepo = await _createNewRepository(_repositories.length);
+      _repositories.add(newRepo);
+      return newRepo;
+    }
+
+    return lastRepo;
+    //final random = math.Random();
+    //final repoIdx = random.nextInt(_repositories.length);
+    //return _repositories[repoIdx];
+  }
+
+  _Repository _getLastRepo() {
+    final repoIdx = _repositories.length - 1;
     return _repositories[repoIdx];
   }
 
@@ -270,6 +307,36 @@ class Github extends StorageProvider {
   }
 
   @override
+  Future<http.Response> upload({
+    required String name,
+    required String filename,
+    required Uint8List bytes,
+  }) async {
+    final repo = await _getAvailableRepository();
+    final encrypted = await _encrypt.encrypt(bytes);
+    final contentInBase64 = base64Encode(encrypted);
+
+    if (kDebugMode) {
+      print('Github start backup to repo [${repo._name}] ...');
+    }
+
+    final url =
+        Uri.parse('$_baseApi/repos/$_orgName/${repo._name}/contents/$name');
+
+    repo.incUploads();
+
+    return await _retryOpts.retry(
+      () async => await http.put(
+        url,
+        headers: _getHeaders(),
+        body: jsonEncode(
+          <String, String>{'message': filename, 'content': contentInBase64},
+        ),
+      ),
+    );
+  }
+
+  @override
   Future<(BackupStatus, Content?)> backup({
     String? contentId,
     required int totalChunks,
@@ -279,10 +346,6 @@ class Github extends StorageProvider {
     required Uint8List bytes,
     required DateTime lastModified,
   }) async {
-    final repo = _getAvailableRepository();
-    final encrypted = await _encrypt.encrypt(bytes);
-    final contentInBase64 = base64Encode(encrypted);
-
     contentId ??= const Uuid().v4();
 
     final contentName = _encodeName(
@@ -293,32 +356,20 @@ class Github extends StorageProvider {
       chunkSeq: chunkSeq,
       chunkSeqId: chunkSeqId,
     );
-    final url = Uri.parse(
-        '$_baseApi/repos/$_orgName/${repo._name}/contents/$contentName');
 
     if (kDebugMode) {
-      print(
-          'Github start backup of file [$filename]/[$chunkSeq/$totalChunks] to repo [${repo._name}]');
+      print('Github start backup of file [$filename]/[$chunkSeq/$totalChunks]');
     }
 
-    final response = await _retryOpts.retry(
-      () async => await http.put(
-        url,
-        headers: _getHeaders(),
-        body: jsonEncode(
-          <String, String>{'message': filename, 'content': contentInBase64},
-        ),
-      ),
+    final response = await upload(
+      name: contentName,
+      filename: filename,
+      bytes: bytes,
     );
 
-/*    final response = await http.put(url,
-        headers: _getHeaders(),
-        body: jsonEncode(
-            <String, String>{'message': filename, 'content': contentInBase64}));
-*/
     if (_successCodes.contains(response.statusCode)) {
       if (kDebugMode) {
-        log('Github success to backup file [$filename] to repo [${repo._name}]');
+        log('Github backup file success: [$filename]');
       }
 
       final contentJson =
@@ -327,8 +378,7 @@ class Github extends StorageProvider {
       return (BackupStatus.OK, _jsonToContent(contentJson));
     } else {
       if (kDebugMode) {
-        log('''Github failed to backup file [$filename] to repo [${repo._name}].
-         status code: [${response.statusCode}]. body : [${response.body}]''');
+        log('Github failed to backup file [$filename]. status code: [${response.statusCode}]. body : [${response.body}]');
       }
     }
 
@@ -396,22 +446,29 @@ class Github extends StorageProvider {
     return allContents.expand((elm) => elm).toList();
   }
 
-  Future<List<Content>> _getContent(_Repository repo) async {
+  Future<List<dynamic>> _getContentJson(_Repository repo) async {
     final url = Uri.parse('$_baseApi/repos/$_orgName/${repo._name}/contents');
     final response = await http.get(url, headers: _getHeaders());
 
     if (!_successCodes.contains(response.statusCode)) {
       if (kDebugMode) {
-        log('''Failed to load contents 
-            ${response.statusCode} : ${response.body}''');
+        print(
+            'Failed to load contents ${response.statusCode} : ${response.body}');
       }
 
       return [];
     }
 
-    final result = (jsonDecode(response.body) as List<dynamic>)
+    return (jsonDecode(response.body) as List<dynamic>);
+  }
+
+  Future<List<Content>> _getContent(_Repository repo) async {
+    final result = (await _getContentJson(repo))
         .map((json) => _jsonToContent(json))
         .toList();
+
+    // update the content count each time we get the content of it.
+    repo._contentCount = result.length;
 
     if (kDebugMode) {
       print('Github contents from ${repo._name}|size : ${result.length}');
@@ -489,22 +546,31 @@ class _Repository {
   final int _id;
   final String _name;
   final String _url;
+  int _contentCount;
+
+  bool get contentCountNotAssigned => _contentCount == -1;
 
   _Repository({required int id, required String name, required String url})
       : _id = id,
         _name = name,
-        _url = url;
+        _url = url,
+        _contentCount = -1;
 
   _Repository.fromJson(Map<String, Object?> json)
       : _id = json['id'] as int,
         _name = json['name'] as String,
-        _url = json['url'] as String;
+        _url = json['url'] as String,
+        _contentCount = -1;
 
   Map<String, Object?> toMap() => {
         'id': _id,
         'name': _name,
         'url': _url,
       };
+
+  void incUploads() {
+    _contentCount++;
+  }
 }
 
 class _User {
