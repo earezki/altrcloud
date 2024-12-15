@@ -44,3 +44,8 @@ TODO:
 **What's not**:
     - Not a collaboration app, it's not optimized to be used by multiple devices at the same time.
     - Not a Github application, you need to create an application and set your keys to avoid api rate limits (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28)
+
+**Challenges**:
+    - Impossible to do modifications in parallel, Github will refuse those writes as they would result in a conflict in the git repository.
+    - A possible solution is to upload in parallel to different repositories.
+    - We should find a balance for the parallel download because this could result in out of memory errors.
