@@ -580,6 +580,7 @@ class ContentModel extends ChangeNotifier {
         : getChunksOf(chunksContents, content);
 
     final cacheExists = await cacheFile.exists();
+    final totalSize = sum(allChunks.map((c) => c.size));
 
     //TODO check the size of the cache against the total size of the chunks.
     if (!(cacheExists)) {
@@ -592,7 +593,13 @@ class ContentModel extends ChangeNotifier {
 
       if (content.fileType == FileType.PICTURE) {
         if (loadingCallback != null) {
-          loadingCallback(content, totalChunks: 1, currentChunk: 0);
+          loadingCallback(
+            content,
+            totalChunks: 1,
+            currentChunk: 0,
+            totalSize: totalSize,
+            currentSize: content.size,
+          );
         }
 
         final result = await provider.loadData(content);
@@ -614,25 +621,30 @@ class ContentModel extends ChangeNotifier {
           //  await randomAccessFile.writeFrom(result.$2);
           //}
 
+          // load a small amount in parallel to avoid out of mem errors.
+          const workerNum = 4;
+          final chunksPartitioned = partition(allChunks, workerNum);
           // make sure all chunks are loaded to cache files.
-          for (int i = 0; i < allChunks.length; i++) {
-            final chunk = allChunks[i];
+          var loadedSize = 0;
+          for (int i = 0; i < chunksPartitioned.length; i++) {
+            final subChunks = chunksPartitioned[i];
 
             if (loadingCallback != null) {
-              loadingCallback(chunk,
-                  totalChunks: allChunks.length, currentChunk: i);
+              loadedSize += (sum(subChunks.map((x) => x.size)));
+              loadingCallback(
+                subChunks[0],
+                totalChunks: allChunks.length,
+                currentChunk: min(i * workerNum, allChunks.length),
+                totalSize: totalSize,
+                currentSize: loadedSize,
+              );
             }
 
-            final chunkFile = await cache.getCacheFileOfContent(chunk);
-            if (kDebugMode) {
-              print(
-                  '_loadData => loading ${chunk.name}|[${chunk.chunkSeq}/${chunk.totalChunks}]');
-            }
-
-            if (!(await chunkFile.exists())) {
-              final result = await provider.loadData(chunk);
-              chunkFile.writeAsBytes(result.$2);
-            }
+            await Future.wait(
+              subChunks
+                  .map((chunk) => _loadChunk(provider, chunk))
+                  .toList(growable: false),
+            );
           }
 
           final randomAccessFile = await cacheFile.open(mode: FileMode.append);
@@ -650,20 +662,6 @@ class ContentModel extends ChangeNotifier {
           } finally {
             await randomAccessFile.close();
           }
-
-          /*
-        // This is a parallel approach, the downside is that the whole file will be held in memory before It can be stored to the filesystem
-         List<Future<(Content, List<int>)>> loadingChunks = [];
-          for (Content chunk in allChunks) {
-            loadingChunks.add(provider.loadData(chunk));
-          }
-
-          final loadedChunks = await Future.wait(loadingChunks);
-          loadedChunks.sort((lhs, rhs) => lhs.$1.chunkSeq.compareTo(rhs.$1.chunkSeq));
-          for (final chunk in loadedChunks) {
-            await randomAccessFile.writeFrom(chunk.$2);
-          }
-          */
         } finally {}
 
         if (kDebugMode) {
@@ -674,6 +672,19 @@ class ContentModel extends ChangeNotifier {
     }
 
     return await _contentRepository.save(content);
+  }
+
+  Future<void> _loadChunk(StorageProvider provider, Content chunk) async {
+    final chunkFile = await cache.getCacheFileOfContent(chunk);
+    if (kDebugMode) {
+      print(
+          '_loadChunk => loading ${chunk.name}|[${chunk.chunkSeq}/${chunk.totalChunks}]');
+    }
+
+    if (!(await chunkFile.exists())) {
+      final result = await provider.loadData(chunk);
+      await chunkFile.writeAsBytes(result.$2);
+    }
   }
 
   Future<void> clearCache() async {

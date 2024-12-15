@@ -15,26 +15,34 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 class LoadingProgress extends StatelessWidget {
-  final int total;
-  final int current;
+  final String title;
+  final int totalChunks;
+  final int currentChunk;
+  final int totalSize;
+  final int currentSize;
 
   const LoadingProgress({
     super.key,
-    required this.total,
-    required this.current,
+    required this.title,
+    required this.totalChunks,
+    required this.currentChunk,
+    required this.totalSize,
+    required this.currentSize,
   });
 
   @override
   Widget build(BuildContext context) {
-    return total <= 1
+    return totalChunks <= 1
         ? const CircularProgressIndicator()
         : Card(
             child: ListTile(
                 leading: scaledCircularProgress(0.7),
-                title: LinearProgressIndicator(
-                  value: current / total,
+                title: Text(
+                    '$title|${getUsedSizeString(currentSize)}/${getUsedSizeString(totalSize)}'),
+                subtitle: LinearProgressIndicator(
+                  value: currentChunk / totalChunks,
                 ),
-                trailing: Text('$current/$total')),
+                trailing: Text('$currentChunk/$totalChunks')),
           );
   }
 }
@@ -95,12 +103,19 @@ class _PhotoCarouselScreenState extends State<PhotoCarouselScreen> {
         pageSnapping: true,
         itemBuilder: (context, index) {
           return FutureBuilder<Content>(
-            future: contentModel.loadContent(index, loadingCallback:
-                (Content content,
-                    {required int totalChunks, required int currentChunk}) {
-              context
-                  .read<CarouselModel>()
-                  .setLoading(totalChunks, currentChunk);
+            future: contentModel.loadContent(index, loadingCallback: (
+              Content content, {
+              required int totalChunks,
+              required int currentChunk,
+              required int totalSize,
+              required int currentSize,
+            }) {
+              context.read<CarouselModel>().setLoading(
+                    totalChunks: totalChunks,
+                    currentChunk: currentChunk,
+                    totalSize: totalSize,
+                    currentSize: currentSize,
+                  );
             }),
             builder: (BuildContext context, AsyncSnapshot<Content> snapshot) {
               if (!snapshot.hasData) {
@@ -109,8 +124,12 @@ class _PhotoCarouselScreenState extends State<PhotoCarouselScreen> {
                   child: Consumer<CarouselModel>(
                       builder: (context, carousel, child) {
                     return LoadingProgress(
-                        total: carousel.loadingTotal,
-                        current: carousel.loadingCurrent);
+                      title: 'Loading ...',
+                      totalChunks: carousel.loadingTotal,
+                      currentChunk: carousel.loadingCurrent,
+                      totalSize: carousel.totalSize,
+                      currentSize: carousel.currentSize,
+                    );
                   }),
                 );
               } else if (snapshot.error != null) {

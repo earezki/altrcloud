@@ -6,24 +6,27 @@ import 'package:multicloud/pages/state/models.dart';
 class CarouselModel extends ChangeNotifier {
   int _loadingTotal = 0;
   int _loadingCurrent = 0;
+  int _totalSize = 0;
+  int _currentSize = 0;
 
   int get loadingTotal => _loadingTotal;
 
   int get loadingCurrent => _loadingCurrent;
 
-  void setLoading(int total, int current) {
-    _loadingTotal = total;
-    _loadingCurrent = current;
-    notifyListeners();
-  }
+  int get totalSize => _totalSize;
 
-  set loadingTotal(int loadingTotal) {
-    _loadingTotal = loadingTotal;
-    notifyListeners();
-  }
+  int get currentSize => _currentSize;
 
-  set loadingCurrent(int loadingCurrent) {
-    _loadingCurrent = loadingCurrent;
+  void setLoading({
+    required int totalChunks,
+    required int currentChunk,
+    required int totalSize,
+    required int currentSize,
+  }) {
+    _loadingTotal = totalChunks;
+    _loadingCurrent = currentChunk;
+    _totalSize = totalSize;
+    _currentSize = currentSize;
     notifyListeners();
   }
 }

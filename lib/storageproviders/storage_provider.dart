@@ -56,8 +56,13 @@ enum SourceType {
 
 enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 
-typedef LoadingCallback = void Function(Content content,
-    {required int totalChunks, required int currentChunk});
+typedef LoadingCallback = void Function(
+  Content content, {
+  required int totalChunks,
+  required int currentChunk,
+  required int totalSize,
+  required int currentSize,
+});
 
 class Content {
   static const thumbnail = 'thumbnail';
