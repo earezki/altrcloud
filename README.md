@@ -3,6 +3,14 @@ Deep link : https://medium.com/flutter-community/deep-links-and-flutter-applicat
 Deep link redirect issue solution: https://github.com/openid/AppAuth-Android/issues/977
 For Github try device flow to avoid having the secret https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
 
+### What is:
+Initially this project started with a different idea, but at the core, an alternate cloud storage solution, then I settled on a Github storage but I kept some elements of previous design around.
+This is a proof of concept to see if Github could be used to store personal securely data such as photo and videos.
+I created this application for myself first, and I'm maintaining/adding features for it when they make sens, I'm using the application daily.
+The data is stored in private Github repositories, and for added security, the data in encrypted/decrypted on device.
+The repositories are created by the application when old ones are full, but the storage is managed by Github and not the application.
+If you delete the repository/files manually from your Github account, the data is lost.
+
 ### Github connecting steps:
 1. create a github account
 2. create an oauth application and assign your own clientid / secret because of the api rate limit.
@@ -12,11 +20,12 @@ For Github try device flow to avoid having the secret https://docs.github.com/en
 
 TODO: 
 1. check & renew token after expiration
-2. Download
-3. favorites
-4. video compression option
-5. flash back story (inspired by google photos)
-6. search by objects (cars, cats, people, ...)
+2. Offload the ui-thread.
+3. Download
+4. favorites
+5. video compression option
+6. flash back story (inspired by google photos)
+7. search by objects (cars, cats, people, ...)
 
 ### High-Level Plan
 

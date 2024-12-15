@@ -30,3 +30,21 @@ int sum(Iterable<int> ints) {
   }
   return result;
 }
+
+List<List<T>> partition<T>(List<T> list, int size) {
+  List<List<T>> partitions = [];
+  List<T> currPartition = [];
+  for (final e in list) {
+    currPartition.add(e);
+    if (currPartition.length == size) {
+      partitions.add(currPartition);
+      currPartition = [];
+    }
+  }
+
+  if (currPartition.isNotEmpty) {
+    partitions.add(currPartition);
+  }
+
+  return partitions;
+}

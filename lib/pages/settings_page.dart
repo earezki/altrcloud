@@ -31,6 +31,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (features.contains(Feature.AUTO_UPLOAD)) {
       widgets.add(const AutoUploadConfig());
     }
+    if (features.contains(Feature.AUTO_SYNC)) {
+      widgets.add(const AutoSyncConfig());
+    }
     if (features.contains(Feature.EDIT_CHUNK_SIZE)) {
       widgets.add(const ChunkSizeInMBConfig());
     }

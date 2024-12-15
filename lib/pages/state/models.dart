@@ -97,7 +97,6 @@ class ContentModel extends ChangeNotifier {
 
     try {
       await _reload();
-      //await sync();
     } finally {
       finishLoading();
     }
@@ -117,8 +116,10 @@ class ContentModel extends ChangeNotifier {
     await contents.removeWhereAsync((c) async {
       final notSupportedExt = !supportedExtensions.contains(c.fileType);
       return (!c.isPrimaryChunk) ||
-          (notSupportedExt) ||
-          (c.hasOtherChunks && (hasPendingChunks(contents, c.name)));
+          (notSupportedExt)
+          // hide chucked data that isn't fully loaded yet.
+          ||
+          (c.hasOtherChunks && (_hasPendingChunks(contents, c.name)));
     });
 
     replace(contents);
@@ -235,7 +236,7 @@ class ContentModel extends ChangeNotifier {
     return true;
   }
 
-  bool hasPendingChunks(List<Content> allContents, String filename) {
+  bool _hasPendingChunks(List<Content> allContents, String filename) {
     final uploadedChunks =
         allContents.where((c) => c.name == filename).toList(growable: false);
 
@@ -412,9 +413,6 @@ class ContentModel extends ChangeNotifier {
 
     for (final content in contentsToDelete) {
       try {
-        /**
-         * TODO, not delete but add a flag to say it's in the trash !
-         */
         if (kDebugMode) {
           print('Deleting from device ...');
         }
@@ -425,6 +423,8 @@ class ContentModel extends ChangeNotifier {
 
         if (deleteFromRemote) {
           await _deleteChunks(content);
+          // TODO: how to get the "content" obj of the thumbnail.
+          // await _deleteThumbnail(content);
         }
       } catch (e) {
         if (kDebugMode) {
@@ -503,9 +503,13 @@ class ContentModel extends ChangeNotifier {
     return provider;
   }
 
-  Future<Content> loadContent(int index) async {
+  Future<Content> loadContent(int index,
+      {LoadingCallback? loadingCallback}) async {
     var content = _contents[index];
-    return await loadData(content);
+    return await loadData(
+      content,
+      loadingCallback: loadingCallback,
+    );
   }
 
   Future<Uint8List> loadContentBytes(int index) async {
@@ -588,7 +592,7 @@ class ContentModel extends ChangeNotifier {
 
       if (content.fileType == FileType.PICTURE) {
         if (loadingCallback != null) {
-          loadingCallback(content, 0);
+          loadingCallback(content, totalChunks: 1, currentChunk: 0);
         }
 
         final result = await provider.loadData(content);
@@ -615,7 +619,8 @@ class ContentModel extends ChangeNotifier {
             final chunk = allChunks[i];
 
             if (loadingCallback != null) {
-              loadingCallback(chunk, i);
+              loadingCallback(chunk,
+                  totalChunks: allChunks.length, currentChunk: i);
             }
 
             final chunkFile = await cache.getCacheFileOfContent(chunk);
@@ -637,6 +642,7 @@ class ContentModel extends ChangeNotifier {
               await randomAccessFile.writeFrom(await chunkFile.readAsBytes());
             }
 
+            // delete the all chunks at the last step to ensure no errors before deleting already downloaded chunks
             for (Content chunk in allChunks) {
               final chunkFile = await cache.getCacheFileOfContent(chunk);
               await chunkFile.delete();

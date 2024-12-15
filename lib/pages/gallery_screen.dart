@@ -107,19 +107,6 @@ class _GalleryPageState extends State<GalleryPage> {
         ],
       ),
     );
-    return Row(
-      children: [
-        const SizedBox(width: 10),
-        Text(DateFormat.yMMMEd().format(date)),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: Divider(
-            thickness: 2, // You can customize the thickness of the line here
-          ),
-        ),
-        const SizedBox(width: 10),
-      ],
-    );
   }
 
   Widget _buildGridTile(int index) {

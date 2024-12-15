@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'dart:collection';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/pages/state/config.dart';
 import 'package:multicloud/pages/state/models.dart';
@@ -63,8 +61,6 @@ class Store extends ChangeNotifier {
   Store updateContent(ContentModel contentModel) {
     _contentModel = contentModel;
 
-    initState().then((aVoid) => notifyListeners());
-
     return this;
   }
 
@@ -76,13 +72,24 @@ class Store extends ChangeNotifier {
   }
 
   Future<void> initState() async {
+    if (kDebugMode) {
+      print('Store.initState in progress ...');
+    }
+
     if (_contentModel != null &&
         _configModel != null &&
         _storageProviderModel != null) {
-      final autoUpload = await _configModel!.isAutoUploadEnabled;
-      if (autoUpload) {
+      if (await _configModel!.isAutoSyncEnabled) {
         if (kDebugMode) {
-          print('Store.updateConfig => auto upload !');
+          print('Store.initState => auto sync !');
+        }
+
+        await sync();
+      }
+
+      if (await _configModel!.isAutoUploadEnabled) {
+        if (kDebugMode) {
+          print('Store.initState => auto upload !');
         }
 
         await backup();
@@ -122,50 +129,6 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _uploadPendingThumbnails(StorageProvider provider) async {
-    final remoteContents = await _getRemoteContent();
-    final List<String> filesToUpload = [];
-    var totalSize = 0;
-
-    for (final rc in remoteContents) {
-      if (!rc.isThumbnail && rc.isPrimaryChunk) {
-        final thumbnailNotUploaded = remoteContents.indexWhere(
-              (r) => r.isThumbnail && r.idFromThumbnail == rc.id,
-            ) ==
-            -1;
-
-        if (thumbnailNotUploaded) {
-          final filePath = getThumbnailFile(rc);
-          final file = File(filePath);
-          if (await file.exists()) {
-            filesToUpload.add(filePath);
-            totalSize += (await file.length());
-          }
-        }
-      }
-    }
-
-    if (kDebugMode) {
-      print('_uploadPendingThumbnails: pending = ${filesToUpload.length}');
-    }
-
-    for (var i = 0; i < filesToUpload.length; i++) {
-      final file = filesToUpload[i];
-
-      _setLoadingFile(
-        filename: 'thumbnails',
-        size: totalSize,
-        totalChunks: filesToUpload.length,
-        uploadedChunks: i,
-      );
-
-      await _uploadThumbnail(
-        provider: provider,
-        file: File(file),
-      );
-    }
-  }
-
   Future<void> backup() async {
     if (_isUploadInProgress || _contentModel!.isLoading) {
       return;
@@ -194,8 +157,6 @@ class Store extends ChangeNotifier {
 
     // we only have one provider (Github) currently.
     final provider = providers[SupportedBackupType.PICTURES]!;
-
-    await _uploadPendingThumbnails(provider);
 
     try {
       for (String pictureDir in pictureDirectories) {
@@ -455,6 +416,9 @@ class Store extends ChangeNotifier {
 
   Future<void> sync() async {
     if (contentModel.isLoading) {
+      if (kDebugMode) {
+        print('sync skipped content is loading ...');
+      }
       return;
     }
 
@@ -463,120 +427,105 @@ class Store extends ChangeNotifier {
     _isUploadInProgress = true;
 
     try {
-      //filter and keep only thumbnails that will be stored to the thumbnails folder.
-      //content will be loaded when the user clicks on it.
-      final remoteContents = await _getMissingRemoteContent();
+      final remoteContents = await _getRemoteContent();
 
-      // count the thumbnails
-      var contentCount = 0;
-      var totalSize = 0;
-      for (var rc in remoteContents) {
-        if (!rc.isThumbnail) {
-          continue;
-        }
-        contentCount++;
-        totalSize += rc.size;
-      }
+      // download/sync missing thumbnails first.
+      await _syncThumbnails(remoteContents);
 
-      for (var i = 0; i < remoteContents.length; i++) {
-        final rc = remoteContents[i];
-        if (!rc.isThumbnail) {
-          continue;
-        }
-
-        try {
-          // skip already loaded thumbnails
-          final contentId = rc.idFromThumbnail;
-          final thumbnailFile = File(getThumbnailFileFromId(contentId));
-          if (await thumbnailFile.exists()) {
-            continue;
-          }
-
-          _setLoadingFile(
-            filename: "sync",
-            size: totalSize,
-            totalChunks: contentCount,
-            uploadedChunks: i,
-          );
-
-          final provider = contentModel.getProviderOfContent(rc);
-          // TODO: loading callback to print progress for all thumbnails (x/total)
-          final result = await provider.loadData(rc);
-          await thumbnailFile.writeAsBytes(result.$2);
-
-          // store the associated content so it can be shown.
-          final contentIdx = remoteContents
-              .indexWhere((c) => c.isPrimaryChunk && c.id == contentId);
-
-          if (contentIdx != -1) {
-            final content = remoteContents[contentIdx];
-            await _contentRepository.save(content);
-            contentModel.add(content);
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            print('Sync failed $e');
-          }
-        }
-      }
-
-      /*
-      final missingContent = await _getMissingRemoteContent();
-      if (missingContent.isNotEmpty) {
-        // save all first to have all the chunks available for videos.
-        //  await _contentRepository.saveAll(remoteContent);
-
-        // create thumbnails.
-        for (var rc in missingContent) {
-          if (rc.isNotPrimaryChunk) {
-            continue;
-          }
-
-          if (rc.hasOtherChunks &&
-              await contentModel.hasPendingChunksForUpload(rc.name)) {
-            // if not all chunks have been updated then we skip it and wait for the next synchronization.
-            continue;
-          }
-
-          //  final localFile = await getFileByName(rc.name, directories);
-          //  rc.localPath = localFile?.path;
-
-          List<Content> allChunks = contentModel.getChunksOf(missingContent, rc);
-          final totalSize = sum(allChunks.map((c) => c.size));
-          rc = await contentModel.loadData(
-            rc,
-            chunksContents: missingContent,
-            loadingCallback: (content, uploadedChunks) => _setLoadingFile(
-              filename: content.name,
-              size: totalSize,
-              totalChunks: content.totalChunks,
-              uploadedChunks: uploadedChunks,
-            ),
-          );
-
-          await _contentRepository.saveAll(allChunks);
-
-          try {
-            await createThumbnail(
-              content: rc,
-              originalPath: rc.path,
-            );
-
-            await _contentRepository.update(rc);
-            contentModel.add(rc);
-          } catch (e) {
-            if (kDebugMode) {
-              print(
-                  'ContentModel.initState => failed to create thumbnail for ${rc.name}, assuming bad upload and deleting from storage !');
-            }
-            // TODO: if thumbnail creation failed, usually the vid isn't well uploaded !
-            // _deleteChunks(rc);
-          }
-        }
-      }*/
+      // upload pending thumbnails so they are available to other devices.
+      await _uploadPendingThumbnails(remoteContents);
     } finally {
       _reinit();
       contentModel.finishLoading();
+    }
+  }
+
+  Future<void> _syncThumbnails(List<Content> remoteContents) async {
+    if (kDebugMode) {
+      print('_syncThumbnails in progress ...');
+    }
+
+    final existingContents = await _contentRepository.find(
+      criteria: SearchCriteria(
+        chunkSeq: null,
+      ),
+    );
+
+    //filter and keep only thumbnails that will be stored to the thumbnails folder.
+    //content will be loaded when the user clicks on it.
+    final List<Content> remoteThumbnails = [];
+
+    // count the thumbnails
+    var totalSize = 0;
+    for (final rc in remoteContents) {
+      if (!rc.isThumbnail) {
+        continue;
+      }
+
+      // is the main content available locally ?
+      final mainContentExists = existingContents.indexWhere(
+              (ec) => ec.isPrimaryChunk && ec.id == rc.idFromThumbnail) !=
+          -1;
+
+      final contentId = rc.idFromThumbnail;
+      final thumbnailFile = File(getThumbnailFileFromId(contentId));
+      if (mainContentExists && await thumbnailFile.exists()) {
+        continue;
+      }
+
+      totalSize += rc.size;
+      remoteThumbnails.add(rc);
+    }
+
+    for (var i = 0; i < remoteThumbnails.length; i++) {
+      _setLoadingFile(
+        filename: "sync",
+        size: totalSize,
+        totalChunks: remoteThumbnails.length,
+        uploadedChunks: i,
+      );
+
+      await _syncThumbnail(
+        remoteContents: remoteContents,
+        localContents: existingContents,
+        rc: remoteThumbnails[i],
+      );
+    }
+  }
+
+  Future<void> _syncThumbnail({
+    required List<Content> remoteContents,
+    required List<Content> localContents,
+    required Content rc,
+  }) async {
+    try {
+      // skip already loaded thumbnails
+      final contentId = rc.idFromThumbnail;
+      final thumbnailFile = File(getThumbnailFileFromId(contentId));
+
+      if (!await thumbnailFile.exists()) {
+        final provider = contentModel.getProviderOfContent(rc);
+
+        final result = await provider.loadData(rc);
+        await thumbnailFile.writeAsBytes(result.$2);
+      }
+
+      // store the associated content so it can be shown.
+      final contentIdx = remoteContents
+          .indexWhere((c) => c.isPrimaryChunk && c.id == contentId);
+
+      if (contentIdx != -1) {
+        final primaryContent = remoteContents[contentIdx];
+
+        final allChunks =
+            contentModel.getChunksOf(remoteContents, primaryContent);
+        await _contentRepository.saveAll(allChunks);
+        contentModel.add(primaryContent);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Sync failed $e');
+      }
     }
   }
 
@@ -592,7 +541,6 @@ class Store extends ChangeNotifier {
         return a.chunkSeq.compareTo(b.chunkSeq);
       },
     );
-
     return remoteContent;
   }
 
@@ -627,5 +575,57 @@ class Store extends ChangeNotifier {
     );
 
     return remoteContent;
+  }
+
+  // when uploading a content, there might be an interruption before uploading the thumbnail.
+  // this method will sync and upload missing thumbnails to remote storage provider.
+  Future<void> _uploadPendingThumbnails(List<Content> remoteContents) async {
+    if (kDebugMode) {
+      print('_uploadPendingThumbnails in progress ...');
+    }
+    final List<Content> toUpload = [];
+    var totalSize = 0;
+
+    // filter & count for progress loader.
+    for (final rc in remoteContents) {
+      if (!rc.isThumbnail && rc.isPrimaryChunk) {
+        final thumbnailNotUploaded = remoteContents.indexWhere(
+              (r) => r.isThumbnail && r.idFromThumbnail == rc.id,
+            ) ==
+            -1;
+
+        if (thumbnailNotUploaded) {
+          final filePath = getThumbnailFile(rc);
+          final file = File(filePath);
+          if (await file.exists()) {
+            toUpload.add(rc);
+            totalSize += (await file.length());
+          }
+        }
+      }
+    }
+
+    if (kDebugMode) {
+      print('_uploadPendingThumbnails: pending = ${toUpload.length}');
+    }
+
+    // actual upload
+    for (var i = 0; i < toUpload.length; i++) {
+      final content = toUpload[i];
+
+      final provider = contentModel.getProviderOfContent(content);
+
+      _setLoadingFile(
+        filename: 'thumbnails',
+        size: totalSize,
+        totalChunks: toUpload.length,
+        uploadedChunks: i,
+      );
+
+      await _uploadThumbnail(
+        provider: provider,
+        file: File(getThumbnailFile(content)),
+      );
+    }
   }
 }

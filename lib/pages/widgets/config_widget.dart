@@ -43,6 +43,44 @@ class _UploadOnlyOnWifiConfigState extends State<UploadOnlyOnWifiConfig> {
   }
 }
 
+class AutoSyncConfig extends StatefulWidget {
+  const AutoSyncConfig({super.key});
+
+  @override
+  State<AutoSyncConfig> createState() => _AutoSyncConfigState();
+}
+
+class _AutoSyncConfigState extends State<AutoSyncConfig> {
+  final ConfigRepository _repository = ConfigRepository();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: FutureBuilder<Config>(
+        future: _repository.find(),
+        builder: (BuildContext context, AsyncSnapshot<Config> snapshot) {
+          return ListTile(
+            title: const Text('Auto sync'),
+            leading: const Icon(Icons.sync_outlined),
+            trailing: _buildSwitch(
+              snapshot,
+              (Config config) => config.isAutoSyncEnabled,
+              (bool value) async {
+                final config = await _repository.find();
+                config.autoSync = value;
+                _repository.save(config);
+                setState(() {
+                  // redraw
+                });
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class AutoUploadConfig extends StatefulWidget {
   const AutoUploadConfig({super.key});
 

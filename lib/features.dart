@@ -8,6 +8,7 @@ enum Feature {
   PHOTO_EDIT,
   EDIT_CHUNK_SIZE,
   AUTO_UPLOAD,
+  AUTO_SYNC,
 
   // up-coming
   STORY_FLASHBACK,
@@ -21,6 +22,7 @@ void initFeatures() {
     features.addAll([
       Feature.EDIT_CHUNK_SIZE,
       Feature.AUTO_UPLOAD,
+      Feature.AUTO_SYNC,
     ]);
   }
 }

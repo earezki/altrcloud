@@ -10,6 +10,7 @@ import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/pages/state/page_state.dart';
 import 'package:multicloud/pages/widgets/gallery_search_delegate.dart';
 import 'package:multicloud/pages/widgets/widgets.dart';
+import 'package:multicloud/storageproviders/data_source.dart';
 import 'package:multicloud/storageproviders/store.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -412,6 +413,20 @@ class _HomePageState extends State<HomePage> {
           ),
           onTap: () {
             context.read<ContentModel>().clearThumbnails();
+          },
+        ),
+      );
+
+      debugActions.add(
+        PopupMenuItem<String>(
+          value: 'Clear contents from DB',
+          child: const ListTile(
+            leading: Icon(Icons.delete_outline),
+            title: Text('Clear contents from DB'),
+          ),
+          onTap: () {
+            ContentRepository().deleteAll()
+              .then((_) => context.read<ContentModel>().initState());
           },
         ),
       );

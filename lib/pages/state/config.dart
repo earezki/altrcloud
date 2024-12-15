@@ -16,6 +16,11 @@ class ConfigModel extends ChangeNotifier {
     return uploadEnabled && autoUpload;
   }
 
+  Future<bool> get isAutoSyncEnabled async {
+    final config = await _configRepository.find();
+    return config.isAutoSyncEnabled;
+  }
+
   Future<List<String>> get directories async {
     final config = await _configRepository.find();
     return await config.getDirectories();

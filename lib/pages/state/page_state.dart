@@ -3,6 +3,31 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:multicloud/pages/state/models.dart';
 
+class CarouselModel extends ChangeNotifier {
+  int _loadingTotal = 0;
+  int _loadingCurrent = 0;
+
+  int get loadingTotal => _loadingTotal;
+
+  int get loadingCurrent => _loadingCurrent;
+
+  void setLoading(int total, int current) {
+    _loadingTotal = total;
+    _loadingCurrent = current;
+    notifyListeners();
+  }
+
+  set loadingTotal(int loadingTotal) {
+    _loadingTotal = loadingTotal;
+    notifyListeners();
+  }
+
+  set loadingCurrent(int loadingCurrent) {
+    _loadingCurrent = loadingCurrent;
+    notifyListeners();
+  }
+}
+
 class GalleryPageModel extends ChangeNotifier {
   final List<int> _selectedIndexList = [];
   bool _selectionMode = false;
@@ -85,7 +110,8 @@ class GalleryPageModel extends ChangeNotifier {
     bool deleteFromRemote = true,
   }) async {
     if (_selectedIndexList.isNotEmpty) {
-      await _contentModel!.delete(_selectedIndexList, deleteFromRemote: deleteFromRemote);
+      await _contentModel!
+          .delete(_selectedIndexList, deleteFromRemote: deleteFromRemote);
 
       changeSelection(enable: false, index: -1);
       notifyListeners();

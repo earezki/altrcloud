@@ -56,7 +56,8 @@ enum SourceType {
 
 enum SupportedBackupType { PICTURES, DOCUMENTS, AUDIO, VIDEO }
 
-typedef LoadingCallback = void Function(Content content, int uploadedChunks);
+typedef LoadingCallback = void Function(Content content,
+    {required int totalChunks, required int currentChunk});
 
 class Content {
   static const thumbnail = 'thumbnail';
@@ -145,6 +146,7 @@ class Content {
         localPath = map['localPath'] as String?;
 
   bool get isThumbnail => name.startsWith(thumbnailPrefix);
+
   String get idFromThumbnail {
     if (!isThumbnail) {
       throw 'can only call for thumbnails';
@@ -195,21 +197,23 @@ class Config {
   final String _id;
   bool _uploadOnlyOnWifi;
   bool _autoUpload;
+  bool autoSync;
   final List<String> _pictureDirectories;
   int chunkSizeInMB;
 
   String clientId;
   String clientSecret;
 
-  Config({
-    required String id,
-    required bool uploadOnlyOnWifi,
-    required bool autoUpload,
-    required List<String> pictureDirectories,
-    required this.chunkSizeInMB,
-    required this.clientId,
-    required this.clientSecret,
-  })  : _id = id,
+  Config(
+      {required String id,
+      required bool uploadOnlyOnWifi,
+      required bool autoUpload,
+      required List<String> pictureDirectories,
+      required this.chunkSizeInMB,
+      required this.clientId,
+      required this.clientSecret,
+      required this.autoSync})
+      : _id = id,
         _uploadOnlyOnWifi = uploadOnlyOnWifi,
         _autoUpload = autoUpload,
         _pictureDirectories = pictureDirectories;
@@ -218,6 +222,7 @@ class Config {
       : _id = const Uuid().v4(),
         _uploadOnlyOnWifi = true,
         _autoUpload = false,
+        autoSync = true,
         _pictureDirectories = [],
         chunkSizeInMB = _defaultChunkSize,
         clientId = '',
@@ -227,6 +232,7 @@ class Config {
         'id': _id,
         'uploadOnlyOnWifi': _uploadOnlyOnWifi,
         'autoUpload': _autoUpload,
+        'autoSync': autoSync,
         'pictureDirectories': _pictureDirectories,
         'chunkSizeInMB': chunkSizeInMB,
         'clientId': clientId,
@@ -236,6 +242,7 @@ class Config {
   Config.fromMap(Map<String, Object?> map)
       : _id = map['id'] as String,
         _uploadOnlyOnWifi = (map['uploadOnlyOnWifi'] ?? true) as bool,
+        autoSync = (map['autoSync'] ?? true) as bool,
         _autoUpload = (map['autoUpload'] ?? false) as bool,
         chunkSizeInMB = (map['chunkSizeInMB'] ?? _defaultChunkSize) as int,
         _pictureDirectories =
@@ -251,6 +258,8 @@ class Config {
   set autoUpload(bool autoUpload) => _autoUpload = autoUpload;
 
   bool get isAutoUploadEnabled => _autoUpload;
+
+  bool get isAutoSyncEnabled => autoSync;
 
   bool get uploadOnlyOnWifi => _uploadOnlyOnWifi;
 

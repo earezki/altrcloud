@@ -6,11 +6,38 @@ import 'package:multicloud/pages/content_info.dart';
 import 'package:multicloud/pages/easy_image_view.dart';
 import 'package:multicloud/pages/edit_photo_screen.dart';
 import 'package:multicloud/pages/state/models.dart';
+import 'package:multicloud/pages/state/page_state.dart';
 import 'package:multicloud/pages/widgets/video_player.dart';
+import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_type.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+
+class LoadingProgress extends StatelessWidget {
+  final int total;
+  final int current;
+
+  const LoadingProgress({
+    super.key,
+    required this.total,
+    required this.current,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return total <= 1
+        ? const CircularProgressIndicator()
+        : Card(
+            child: ListTile(
+                leading: scaledCircularProgress(0.7),
+                title: LinearProgressIndicator(
+                  value: current / total,
+                ),
+                trailing: Text('$current/$total')),
+          );
+  }
+}
 
 class PhotoCarouselScreen extends StatefulWidget {
   const PhotoCarouselScreen({super.key, required this.initialIndex});
@@ -68,12 +95,23 @@ class _PhotoCarouselScreenState extends State<PhotoCarouselScreen> {
         pageSnapping: true,
         itemBuilder: (context, index) {
           return FutureBuilder<Content>(
-            future: contentModel.loadContent(index),
+            future: contentModel.loadContent(index, loadingCallback:
+                (Content content,
+                    {required int totalChunks, required int currentChunk}) {
+              context
+                  .read<CarouselModel>()
+                  .setLoading(totalChunks, currentChunk);
+            }),
             builder: (BuildContext context, AsyncSnapshot<Content> snapshot) {
               if (!snapshot.hasData) {
                 // while data is loading:
-                return const Center(
-                  child: CircularProgressIndicator(),
+                return Center(
+                  child: Consumer<CarouselModel>(
+                      builder: (context, carousel, child) {
+                    return LoadingProgress(
+                        total: carousel.loadingTotal,
+                        current: carousel.loadingCurrent);
+                  }),
                 );
               } else if (snapshot.error != null) {
                 return const Center(

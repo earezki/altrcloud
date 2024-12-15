@@ -14,6 +14,9 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(
+          create: (_) => CarouselModel(),
+        ),
+        ChangeNotifierProvider(
           create: (_) => ConfigModel(),
         ),
         ChangeNotifierProvider(
@@ -50,7 +53,7 @@ class MultiCloudManagerApp extends StatelessWidget {
     initFeatures();
 
     return MaterialApp(
-      title: 'AltrCloud',
+      title: 'GitPhoto',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         visualDensity: VisualDensity.adaptivePlatformDensity,

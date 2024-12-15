@@ -143,7 +143,7 @@ class ContentRepository {
   Future<void> saveAll(List<Content> contents) async {
     Database database = await DataSource.instance.database;
 
-    database.transaction(
+    await database.transaction(
       (tx) async {
         for (Content c in contents) {
           await save(c, tx: tx);
@@ -275,6 +275,16 @@ class ContentRepository {
       id: content.id,
       chunkSeq: -1,
     ));
+  }
+
+  Future<void> deleteAll() async {
+    if (!kDebugMode) {
+      throw 'Should only be used in debug/dev mode !';
+    }
+
+    Database database = await DataSource.instance.database;
+
+    await database.rawDelete("DELETE FROM ${_Tables.CONTENT.name}");
   }
 }
 
