@@ -50,6 +50,20 @@ TODO:
     - A possible solution is to upload in parallel to different repositories.
     - We should find a balance for the parallel download because this could result in out of memory errors.
 
+**How to use**:
+    - Got to the *organizations* page in your Github account settings. (https://github.com/settings/organizations)
+    - Click on the *New organization* button.
+    - Create an organization that starts with *altrcloud*. (exp: altrcloud-earezki)
+    - Got to the *Developer settings* of the new organization, then select OAuth Apps. (https://github.com/organizations/${org_name}/settings/applications)
+    - Click on *New OAuth app*, fill in the *Authorization callback URL* with **altrcloud://callback**, and check the **Enable Device Flow**, then set *Application name* and *Homepage URL* to whatever you like. Finally click on *Register application*.
+    - Copy the *Client ID*
+    - Click on *generate a new client secret*, the copy the value because it will be visible only once.
+    - Go to the *Settings* page in the *GitPhoto* application.
+    - Click on *Client credentials*, then fill in the *Client ID* and the *Client secret*. (They will be stored locally on the phone)
+    - Click on the *Github* button in the same *Settings* page.
+    - Give the application the requested permissions to manage the organization and it's private repositories. (the generated token will be stored locally in the phone)
+    - Go back to the *Gallery* page, then click on the *upload* button. (Floating button in the button to the right)
+
 **FAQ**:
     - If the video's colors are bad or not playing correctly, then please use the *open with* option from the menu in the video screen.
     - If you face issue while uploading a video, then try the *resolve conflict* option. (**WARNING** this will try to delete duplicated contents from the remote storage, so use it carefully)
