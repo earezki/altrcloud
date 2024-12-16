@@ -29,9 +29,10 @@ TODO:
 
 ### **Features**:
 * User authentication and connection to Github.
+* Basic cross-device synchronizations.
 * Upload photos & videos.
 * Notification and error handling.
-* Simple Search: by type (Photo, Video, Screeshot) or by full name.
+* Basic Search: by type (Photo, Video, Screeshot) or by full name.
 * Group content by date
 * Usage Analytics.
 * End-to-End Encryption: every thing is encrypted/decrypted on the device itself.
@@ -66,3 +67,39 @@ TODO:
 * If the video's colors are bad or not playing correctly, then please use the *open with* option from the menu in the video screen.
 * If you face issue while uploading a video, then try the *resolve conflict* option. (**WARNING** this will try to delete duplicated contents from the remote storage, so use it carefully)
 * If you want to synchronize two devices, make sure that *Sync* is enabled or else trigger it manually.
+
+### **License**
+
+```
+Copyright (C) 2024 GitPhoto
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+Usage conditions:
+- Copied/Modified version of this software can not be used for 'non-free' and profit purposes.
+- You can not publish copied/modified version of this app on closed source app repository
+  like PlayStore/AppStore.
+---
+
+#### Disclaimer of Warranty
+THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT
+WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND
+PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE
+DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR, OR
+CORRECTION.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, you can find the full GPL v3.0 license text [here](https://www.gnu.org/licenses/gpl-3.0.html).
+```
