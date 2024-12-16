@@ -101,5 +101,5 @@ DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR, OR
 CORRECTION.
 
 You should have received a copy of the GNU General Public License
-along with this program. If not, you can find the full GPL v3.0 license text [here](https://www.gnu.org/licenses/gpl-3.0.html).
+along with this program. If not, you can find the full GPL v3.0 license text here: https://www.gnu.org/licenses/gpl-3.0.html.
 ```

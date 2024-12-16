@@ -19,7 +19,10 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
+          flutter-version: '3.27.0'
+      - run: |
+          git config --global --add safe.directory /opt/hostedtoolcache/flutter/stable-3.27.0-x64
+          flutter build bundle
 
       # Extract version from branch name
       - name: Extract version from branch name
