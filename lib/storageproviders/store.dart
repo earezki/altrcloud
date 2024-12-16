@@ -580,9 +580,18 @@ class Store extends ChangeNotifier {
   // when uploading a content, there might be an interruption before uploading the thumbnail.
   // this method will sync and upload missing thumbnails to remote storage provider.
   Future<void> _uploadPendingThumbnails(List<Content> remoteContents) async {
+    final isUploadEnabled = await configModel.isUploadEnabled;
+    if (isUploadEnabled == false) {
+      if (kDebugMode) {
+        print('_uploadPendingThumbnails upload disabled ...');
+      }
+      return;
+    }
+
     if (kDebugMode) {
       print('_uploadPendingThumbnails in progress ...');
     }
+
     final List<Content> toUpload = [];
     var totalSize = 0;
 

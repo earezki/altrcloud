@@ -127,21 +127,6 @@ class ContentModel extends ChangeNotifier {
     finishLoading();
   }
 
-  List<Content> _getDuplicates(List<Content> list) {
-    Set<String> unique = {};
-    List<Content> duplicates = [];
-    for (final content in list) {
-      final id = '${content.name}|${content.chunkSeq}';
-      if (unique.contains(id)) {
-        duplicates.add(content);
-      } else {
-        unique.add(id);
-      }
-    }
-
-    return duplicates;
-  }
-
   /**
       TODO add documentation.
       deletes duplicated files with the same name and same chunck sequence from local and remote storage.
@@ -153,13 +138,18 @@ class ContentModel extends ChangeNotifier {
 
     startLoading();
     try {
-      final remoteContents = (await storageProviderModel.fetchContent())
+      final allRemoteContents = (await storageProviderModel.fetchContent());
+      final remoteContents = allRemoteContents
           .where((rc) => !rc.isThumbnail)
-          .toList();
+          .toList(growable: false);
 
       Map<String, List<Content>> contentsByFilename = {};
       // group by 'name | chunkSeq'
-      for (final content in _getDuplicates(remoteContents)) {
+      nameChunkKeyExtractor(Content content) =>
+          '${content.name}|${content.chunkSeq}';
+      final (_, duplicates) =
+          getDuplicates(remoteContents, nameChunkKeyExtractor);
+      for (final content in duplicates) {
         remoteContents
             .where(
                 (c) => c.name == content.name && c.chunkSeq == content.chunkSeq)
@@ -207,8 +197,9 @@ class ContentModel extends ChangeNotifier {
           }
         }
 
-        // TODO: delete local duplicates from db.
+        _deleteDuplicatedThumbnails(allRemoteContents);
 
+        // TODO: delete local duplicates from db.
         if (kDebugMode) {
           for (final c in toDelete) {
             print(
@@ -218,6 +209,17 @@ class ContentModel extends ChangeNotifier {
       }
     } finally {
       finishLoading();
+    }
+  }
+
+  void _deleteDuplicatedThumbnails(List<Content> allRemoteContents) {
+    // delete duplicated thumbnails in remote storage.
+    final thumbnails =
+        allRemoteContents.where((rc) => rc.isThumbnail).toList(growable: false);
+    final (_, duplicatedThumbnails) =
+        getDuplicates(thumbnails, (content) => content.name);
+    for (final rt in duplicatedThumbnails) {
+      _deleteContent(rt);
     }
   }
 

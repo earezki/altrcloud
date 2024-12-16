@@ -49,3 +49,8 @@ TODO:
     - Impossible to do modifications in parallel, Github will refuse those writes as they would result in a conflict in the git repository.
     - A possible solution is to upload in parallel to different repositories.
     - We should find a balance for the parallel download because this could result in out of memory errors.
+
+**FAQ**:
+    - If the video's colors are bad or not playing correctly, then please use the *open with* option from the menu in the video screen.
+    - If you face issue while uploading a video, then try the *resolve conflict* option. (**WARNING** this will try to delete duplicated contents from the remote storage, so use it carefully)
+    - If you want to synchronize two devices, make sure that *Sync* is enabled or else trigger it manually.

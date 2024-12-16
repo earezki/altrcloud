@@ -27,6 +27,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _videoPlayerController = VlcPlayerController.file(
       File(widget.video.path),
       autoPlay: _isPlaying,
+      hwAcc: HwAcc.auto,
       options: VlcPlayerOptions(),
     );
 
@@ -37,6 +38,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void dispose() {
     _videoPlayerController.dispose();
 
+    // in debug mode the wake lock is enabled at the start of the app, hence we don't want to disable after watching a video.
     if (!kDebugMode) {
       WakelockPlus.disable();
     }
@@ -46,6 +48,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Column(
       children: [
         Expanded(

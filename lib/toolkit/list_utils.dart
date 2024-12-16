@@ -48,3 +48,22 @@ List<List<T>> partition<T>(List<T> list, int size) {
 
   return partitions;
 }
+
+// returns unique, duplicates
+(Set<T>, List<T>) getDuplicates<T>(
+    List<T> list, String Function(T c) keyExtractor) {
+  Set<String> uniqueKeys = {};
+  List<T> duplicates = [];
+  Set<T> unique = {};
+  for (final e in list) {
+    final id = keyExtractor(e);
+    if (uniqueKeys.contains(id)) {
+      duplicates.add(e);
+    } else {
+      uniqueKeys.add(id);
+      unique.add(e);
+    }
+  }
+
+  return (unique, duplicates);
+}

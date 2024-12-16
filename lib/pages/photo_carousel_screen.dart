@@ -11,6 +11,7 @@ import 'package:multicloud/pages/widgets/video_player.dart';
 import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_type.dart';
+import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -217,6 +218,20 @@ class _PhotoCarouselScreenState extends State<PhotoCarouselScreen> {
               },
             ),
           );
+        },
+      ),
+      PopupMenuItem<String>(
+        value: 'Open with',
+        child: const ListTile(
+          leading: Icon(Icons.open_with_outlined),
+          title: Text('Open with'),
+        ),
+        onTap: () async {
+          if (_selected != null) {
+            final filePath = _selected!.path;
+            //final extension = ;//import 'package:path/path.dart' as path;
+            await OpenFile.open(filePath);
+          }
         },
       ),
       PopupMenuItem<String>(
