@@ -1,0 +1,53 @@
+name: Build and Release Flutter App
+
+on:
+  push:
+    branches:
+      - "release/*"
+
+jobs:
+  build:
+    name: Build Flutter App
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Set up Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      # Extract version from branch name
+      - name: Extract version from branch name
+        id: extract_version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      # Install dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Run tests (optional, you can skip this if you don't have tests)
+      - name: Run tests
+        run: flutter test
+
+      # Build APK (or iOS app for macOS runners)
+      - name: Build APK
+        run: flutter build apk --release
+
+      # Upload the APK to GitHub Releases
+      - name: Create Release and Upload APK
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v${{ env.VERSION }}"
+          name: "v${{ env.VERSION }}"
+          body: "Release for version v${{ env.VERSION }}"
+          draft: false
+          prerelease: true
+          artifacts: |
+            build/app/outputs/flutter-apk/app-release.apk
