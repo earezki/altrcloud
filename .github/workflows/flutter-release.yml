@@ -39,7 +39,7 @@ jobs:
 
       # Build APK (or iOS app for macOS runners)
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --obfuscate
 
       # Upload the APK to GitHub Releases
       - name: Create Release and Upload APK

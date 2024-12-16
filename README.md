@@ -1,8 +1,3 @@
-### resources
-* Deep link : https://medium.com/flutter-community/deep-links-and-flutter-applications-how-to-handle-them-properly-8c9865af9283
-* Deep link redirect issue solution: https://github.com/openid/AppAuth-Android/issues/977
-* For Github try device flow to avoid having the secret https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
-
 ### What is:
 Initially this project started with a different idea, but at the core, an alternate cloud storage solution, then I settled on a Github storage but I kept some elements of previous design around.
 This is a proof of concept to see if Github could be used to store personal securely data such as photo and videos.
@@ -11,14 +6,7 @@ The data is stored in private Github repositories, and for added security, the d
 The repositories are created by the application when old ones are full, but the storage is managed by Github and not the application.
 If you delete the repository/files manually from your Github account, the data is lost.
 
-### Github connecting steps:
-1. create a github account
-2. create an oauth application and assign your own clientid / secret because of the api rate limit.
-3. create an organization with name starting with **altrcloud**
-4. give permission to the organization via: https://github.com/settings/connections/applications/:clientId
-5. connect user via the application.
-
-TODO: 
+### **TODO**: 
 1. check & renew token after expiration
 2. Offload the ui-thread.
 3. Download
@@ -34,7 +22,6 @@ TODO:
 * Notification and error handling.
 * Basic Search: by type (Photo, Video, Screeshot) or by full name.
 * Group content by date
-* Usage Analytics.
 * End-to-End Encryption: every thing is encrypted/decrypted on the device itself.
 * Caching for faster retrieval.
 * Resume upload of large files (videos)
@@ -50,22 +37,32 @@ TODO:
 * We should find a balance for the parallel download because this could result in out of memory errors.
 
 ### **How to use**:
-* Got to the *organizations* page in your Github account settings. (https://github.com/settings/organizations)
-* Click on the *New organization* button.
-* Create an organization that starts with *altrcloud*. (exp: altrcloud-earezki)
-* Got to the *Developer settings* of the new organization, then select OAuth Apps. (https://github.com/organizations/${org_name}/settings/applications)
-* Click on *New OAuth app*, fill in the *Authorization callback URL* with **altrcloud://callback**, and check the **Enable Device Flow**, then set *Application name* and *Homepage URL* to whatever you like. Finally click on *Register application*.
-* Copy the *Client ID*
-* Click on *generate a new client secret*, the copy the value because it will be visible only once.
-* Go to the *Settings* page in the *GitPhoto* application.
-* Click on *Client credentials*, then fill in the *Client ID* and the *Client secret*. (They will be stored locally on the phone)
-* Click on the *Github* button in the same *Settings* page.
-* Give the application the requested permissions to manage the organization and it's private repositories. (the generated token will be stored locally in the phone)
-* Go back to the *Gallery* page, then click on the *upload* button. (Floating button in the button to the right)
+1. Go to the **_organizations_** page in your Github account settings. (https://github.com/settings/organizations)
+2. Click on the _**New organization**_ button.
+3. Create an organization that starts with **_altrcloud_**. (exp: altrcloud-earezki)
+4. Got to the **_Developer settings_** of the new organization, then select **_OAuth Apps_**. (https://github.com/organizations/${org_name}/settings/applications)
+5. Click on **_New OAuth app_**, fill in the **_Authorization callback URL_** with **altrcloud://callback**, and check the **Enable Device Flow**, then set **_Application name_** and **_Homepage URL_** to whatever you like. Finally click on ***Register application***.
+6. Copy the *Client ID*
+7. Click on *generate a new client secret*, then copy the value because it will be visible only once.
+8. Go to the *Settings* page in the *GitPhoto* application.
+9. Click on *Client credentials*, then fill in the *Client ID* and the *Client secret*. (They will be stored locally on the phone)
+10. Click on the *Github* button in the same *Settings* page.
+11. Give the application the requested permissions to manage the organization and it's private repositories. (the generated token will be stored locally in the phone)
+12. Go back to the *Gallery* page, then click on the **_upload_** button. (Floating button in the bottom to the right)
+
+### **How to get**:
+#### **Build from source**:
+```shell
+git clone
+cd project directory
+flutter build apk --release --obfuscate --split-debug-info=.\build\app\outputs\flutter-apk\debug-info
+```
+#### **Get it on Github**:
+[<img alt="GitPhoto" width="250px" src="./get_it_on_github.png" />](https://github.com/earezki/altrcloud/releases/latest/)
 
 ### **FAQ**:
 * If the video's colors are bad or not playing correctly, then please use the *open with* option from the menu in the video screen.
-* If you face issue while uploading a video, then try the *resolve conflict* option. (**WARNING** this will try to delete duplicated contents from the remote storage, so use it carefully)
+* If you face issue while uploading a video, then try the *resolve conflict* option. ( **WARNING** this will try to delete duplicated contents from the remote storage, so use it carefully )
 * If you want to synchronize two devices, make sure that *Sync* is enabled or else trigger it manually.
 
 ### **License**
