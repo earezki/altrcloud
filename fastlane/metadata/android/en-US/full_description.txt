@@ -1,0 +1,13 @@
+Features:
+
+- Cross-device synchronizations.
+- No middleware, all of the logic in the application.
+- Upload photos & videos.
+- Search by type (Photo, Video, Screeshot) or by full name.
+- Group content by date.
+- End-to-End Encryption: every thing is encrypted/decrypted on the device itself.
+- Sharing.
+- Media info. (Geolocation, size ...)
+- Caching for faster retrieval.
+- Resume download and upload of large files (videos)
+- Works only on private repositories for added security.

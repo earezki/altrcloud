@@ -25,7 +25,8 @@ If you delete the repository/files manually from your Github account, the data i
 * End-to-End Encryption: every thing is encrypted/decrypted on the device itself.
 * Caching for faster retrieval.
 * Resume upload of large files (videos)
-* works only on private repositories
+* Works only on private repositories.
+* Open with fingerprint.
 
 ### **What's not**:
 * Not a collaboration app, it's not optimized to be used by multiple devices at the same time.
@@ -53,9 +54,12 @@ If you delete the repository/files manually from your Github account, the data i
 ### **How to get**:
 #### **Build from source**:
 ```shell
-git clone
-cd project directory
-flutter build apk --release --obfuscate --split-debug-info=.\build\app\outputs\flutter-apk\debug-info
+git clone https://github.com/earezki/altrcloud.git
+cd altrcloud
+# build per architecture APK
+flutter build apk --target-platform android-arm,android-arm64 --split-per-abi
+# build a universal APK
+flutter build apk --release
 ```
 #### **Get it on Github**:
 [<img alt="GitPhoto" width="250px" src="./get_it_on_github.png" />](https://github.com/earezki/altrcloud/releases/latest/)
