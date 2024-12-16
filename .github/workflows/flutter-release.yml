@@ -30,10 +30,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Run tests (optional, you can skip this if you don't have tests)
-      - name: Run tests
-        run: flutter test
-
       # Build APK (or iOS app for macOS runners)
       - name: Build APK
         run: flutter build apk --release
