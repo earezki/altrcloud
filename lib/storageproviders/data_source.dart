@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:multicloud/storageproviders/github/Github.dart';
+import 'package:multicloud/storageproviders/github/github.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:multicloud/toolkit/file_utils.dart';
 import 'package:path/path.dart';
