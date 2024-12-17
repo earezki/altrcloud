@@ -62,6 +62,13 @@ android {
         }
     }
 
+    aaptOptions {
+        noCompress 'flutter_assets'
+        noCompress 'vm_snapshot_data'
+        noCompress 'isolate_snapshot_data'
+        noCompress 'kernel_blob.bin'
+    }
+
 }
 
 java {

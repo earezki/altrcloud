@@ -3,7 +3,7 @@
 -keep class io.flutter.embedding.** { *; }
 
 # Keep the names of classes used by Flutter plugins
--keep class com.yourcompany.yourplugin.** { *; }
+-keep class com.multicloud.multicloud.** { *; }
 
 # Prevent obfuscation of classes that are referenced in XML
 -keepclassmembers class * {
@@ -50,3 +50,8 @@
 -dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnSuccessListener
 -dontwarn com.google.android.play.core.tasks.Task
+
+# Keep Flutter assets
+-keep class **.R
+-keep class **.R$* { *; }
+-keep class io.flutter.** { *; }
