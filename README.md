@@ -84,10 +84,6 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
-Usage conditions:
-- Copied/Modified version of this software can not be used for 'non-free' and profit purposes.
-- You can not publish copied/modified version of this app on closed source app repository
-  like PlayStore/AppStore.
 ---
 
 #### Disclaimer of Warranty
