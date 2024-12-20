@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_editor_plus/image_editor_plus.dart';
+//import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
 import 'package:provider/provider.dart';
@@ -44,8 +44,9 @@ class EditPhotoScreen extends StatelessWidget {
   }
 
   Widget _buildImage(Uint8List data) {
-    return ImageEditor(
-      image: data, // <-- Uint8List of image
-    );
+    return Text('Disabled !');
+    //return ImageEditor(
+    //  image: data, // <-- Uint8List of image
+    //);
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
+import 'package:multicloud/geo/openstreetmap.dart';
 import 'package:multicloud/pages/state/models.dart';
 import 'package:multicloud/pages/widgets/widgets.dart';
 import 'package:multicloud/storageproviders/storage_provider.dart';
@@ -121,15 +121,13 @@ class ContentInfo extends StatelessWidget {
       return 'Unavailable';
     }
 
-    final placemarks =
-        await placemarkFromCoordinates(latlong.latitude, latlong.longitude);
-    if (placemarks.isEmpty) {
+    final address =
+        await OpenStreetMapGeocoding.reverseGeocoding(latlong.latitude, latlong.longitude);
+
+    if (address == null) {
       return '(${latlong.latitude}, ${latlong.longitude})';
     }
-
-    final address = placemarks.first;
-
-    return '${address.street}, ${address.locality}, ${address.country}';
+    return address;
   }
 
   Widget _getWidgetOfFuture<T>(Future<T> future, Function(T) widget) {
